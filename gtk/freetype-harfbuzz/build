@@ -1,0 +1,52 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+pkg-config --exists gobject-introspection-1.0 && gir=enabled
+
+build_freetype() (
+    cd freetype
+
+    meson setup \
+        -Dprefix=/usr \
+        -Ddefault_library=both \
+        -Dbzip2=disabled \
+        -Dzlib=disabled \
+        "$@" \
+        output
+
+    ninja -C output
+    ninja -C output install
+)
+
+build_harfbuzz() (
+    cd harfbuzz
+
+    meson setup \
+        -Dprefix=/usr \
+        -Dpkg_config_path="$DESTDIR/usr/lib/pkgconfig" \
+        -Ddefault_library=both \
+        -Dglib="${gir:-disabled}" \
+        -Dfreetype=enabled \
+        -Dgobject="${gir:-disabled}" \
+        -Dcairo=disabled \
+        -Dicu=disabled \
+        -Dbenchmark=disabled \
+        -Dtests=disabled \
+        output
+
+    ninja -C output
+    ninja -C output install
+)
+
+# Point Freetype to the Harfbuzz files.
+export CPPFLAGS="$CPPFLAGS -I$DESTDIR/usr/include/harfbuzz"
+export LDFLAGS="$LDFLAGS -L$DESTDIR/usr/lib"
+export PKG_CONFIG_PATH="$DESTDIR/usr/lib/pkgconfig"
+
+# Point Harfbuzz to the Freetype files.
+export CPPFLAGS="$CPPFLAGS -I$DESTDIR/usr/include/freetype2"
+
+build_freetype -Dharfbuzz=disabled
+build_harfbuzz
+build_freetype -Dharfbuzz=enabled --reconfigure

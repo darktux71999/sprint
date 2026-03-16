@@ -1,0 +1,4 @@
+#!/bin/sh -e
+
+install -d "$1/usr/include"
+install -m644 ./include/*.h "$1/usr/include"

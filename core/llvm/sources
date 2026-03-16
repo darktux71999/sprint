@@ -1,0 +1,11 @@
+https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/llvm-project-21.1.8.src.tar.xz llvm
+files/c89
+files/c99
+patches/0012-libc-libc-abi-libunwind-disable-multiarch-locations.patch
+patches/0014-clang-disable-multiarch-layout-on-musl.patch
+patches/0017-clang-use-as-needed-by-default.patch
+patches/0024-clang-link-libcxxabi-on-linux-when-using-libc.patch
+patches/compiler-rt-sanitizer-supported-arch.patch
+patches/fix-msan-with-musl.patch
+patches/musl-stack-size.patch
+patches/musl-targets.patch

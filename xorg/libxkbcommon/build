@@ -1,0 +1,21 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+# Disable valgrind test, incompatible with muon.
+sed "s/valgrind.found()/false/" meson.build > _
+mv -f _ meson.build
+
+meson setup \
+    -Dprefix=/usr \
+    -Dlibexecdir=/usr/lib \
+    -Ddefault_library=both \
+    -Denable-docs=false \
+    -Denable-wayland=false \
+    -Denable-x11=true \
+    -Denable-xkbregistry=false \
+    -Dpkg_config_path=/usr/lib/pkgconfig \
+    output
+
+ninja -C output
+ninja -C output install

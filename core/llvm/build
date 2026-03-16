@@ -1,0 +1,87 @@
+#!/bin/sh -e
+
+# En KISS, si los parches están en 'sources', se copian al directorio actual.
+# Se asume que estás en la raíz donde se descomprimió o donde están los parches.
+
+export DESTDIR="$1"
+cd llvm
+
+for patch in ../*.patch; do
+    patch -p1 < "$patch"
+done
+
+# 2. Preparar entorno
+# Krak3n usa el monorepo (llvm-project), así que entramos en la carpeta llvm.
+# Nota: Ajusta el nombre del directorio si el tarball lo extrae diferente.
+
+# Definimos el Triple para asegurar que LLVM sepa que es nativo musl
+HOST_TRIPLE="x86_64-pc-linux-musl"
+
+# 3. Configuración (Adaptada de Krak3n para KISS)
+mkdir -p build
+cd build
+
+echo "Directorio actual: $(pwd)"
+echo "Buscando CMakeLists.txt en ../llvm..."
+ls -l ../llvm/CMakeLists.txt || echo "¡ALERTA! No se encuentra CMakeLists.txt en ../llvm"
+
+cmake -S ../llvm \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_HOST_TRIPLE="$HOST_TRIPLE" \
+    -DLLVM_DEFAULT_TARGET_TRIPLE="$HOST_TRIPLE" \
+    -DLLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
+    -DLLVM_BUILD_LLVM_DYLIB=ON \
+    -DLLVM_LINK_LLVM_DYLIB=ON \
+    -DLLVM_ENABLE_RTTI=ON \
+    -DLLVM_ENABLE_EH=ON \
+    -DLLVM_ENABLE_LLD=ON \
+    -DLLVM_INSTALL_BINUTILS_SYMLINKS=ON \
+    -DLLVM_ENABLE_PROJECTS="clang;lld" \
+    -DLLVM_ENABLE_RUNTIMES="compiler-rt;libunwind;libcxx;libcxxabi" \
+    -DLLVM_INCLUDE_BENCHMARKS=OFF \
+    -DLLVM_INCLUDE_EXAMPLES=OFF \
+    -DLLVM_INCLUDE_DOCS=OFF \
+    -DLLVM_INCLUDE_TESTS=OFF \
+    -DLLVM_ENABLE_LIBXML2=OFF \
+    -DCLANG_DEFAULT_RTLIB=compiler-rt \
+    -DCLANG_DEFAULT_UNWINDLIB=libunwind \
+    -DCLANG_DEFAULT_CXX_STDLIB=libc++ \
+    -DCLANG_DEFAULT_LINKER=lld \
+    -DCLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
+    -DLIBCLANG_BUILD_STATIC=ON \
+    -DLIBCXX_HAS_MUSL_LIBC=ON \
+    -DLIBCXX_USE_COMPILER_RT=ON \
+    -DLIBCXX_CXX_ABI=libcxxabi \
+    -DLIBCXXABI_USE_LLVM_UNWINDER=ON \
+    -DLIBCXXABI_USE_COMPILER_RT=ON \
+    -DLIBUNWIND_USE_COMPILER_RT=ON \
+    -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON \
+    -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
+    -DCOMPILER_RT_BUILD_XRAY=OFF \
+    -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
+    -DCOMPILER_RT_BUILD_PROFILE=OFF \
+    -Wno-dev
+
+# NOTA SOBRE SANITIZERS: Krak3n los tiene en ON, pero en un bootstrap inicial 
+# con musl puro suelen fallar por falta de rpc/xdr.h. 
+# Los he puesto en OFF para asegurar el éxito del build.
+
+# 4. Compilar e Instalar
+cmake --build .
+cmake --install .
+
+# 5. Post-instalación: Enlaces simbólicos (Reemplazo de GCC/Binutils)
+cd "$1/usr/bin"
+
+# Enlaces para que el sistema crea que tiene GCC/Binutils
+ln -sf lld ld
+ln -sf clang cc
+ln -sf clang gcc
+ln -sf clang cpp
+ln -sf clang++ c++
+ln -sf clang++ g++
+
+# Scripts c89/c99 (Opcional, si los tienes en sources instalalos, si no, o
+

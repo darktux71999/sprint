@@ -1,0 +1,8 @@
+NAME="KISS Linux Community"
+PRETTY_NAME="KISS Linux Community"
+ID=kiss
+BUILD_ID=rolling
+HOME_URL="https://kisslinux.github.io"
+DOCUMENTATION_URL="https://kisslinux.github.io"
+SUPPORT_URL="https://codeberg.org/kiss-community"
+BUG_REPORT_URL="https://codeberg.org/kiss-community"
