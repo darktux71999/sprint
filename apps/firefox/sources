@@ -1,9 +1,9 @@
-https://ftp.mozilla.org/pub/firefox/releases/147.0.3/source/firefox-147.0.3.source.tar.xz
+https://ftp.mozilla.org/pub/firefox/releases/148.0.2/source/firefox-148.0.2.source.tar.xz
 patches/clang-ias.patch
-patches/clang-memory-throw-gcc.patch
+#patches/clang-memory-throw-gcc.patch
 patches/fix-header-musl.patch
 patches/fix-target-detection.patch
-patches/libcxx18.patch
+#patches/libcxx18.patch
 patches/musl-prctl.patch
 patches/musl-sandbox.patch
 patches/no-atk.patch
