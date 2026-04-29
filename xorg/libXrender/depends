@@ -1,4 +1,0 @@
-libX11
-libXext   make
-pkgconf   make
-xorgproto make
