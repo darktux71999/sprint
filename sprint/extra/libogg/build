@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+./configure \
+    --prefix=/usr
+
+make -C src
+make -C include DESTDIR="$1" install
+make -C src     DESTDIR="$1" install
+
+make DESTDIR="$1" \
+    install-m4dataDATA \
+    install-pkgconfigDATA

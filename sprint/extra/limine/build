@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+# Support for uefi aarch64 disabled because it's unsupported
+# in kiss
+
+export LD_FOR_TARGET=ld
+
+./configure \
+	--prefix=/usr \
+	--enable-all \
+	--disable-uefi-aarch64 \
+	--disable-uefi-riscv64 \
+	--disable-uefi-loongarch64
+	
+make
+make DESTDIR="$1" install

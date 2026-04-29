@@ -1,0 +1,13 @@
+fontconfig
+freetype-harfbuzz
+glib
+libX11
+libXext
+libXrender
+libpng
+libxcb
+mesa
+meson make
+pixman
+pkgconf make
+zlib

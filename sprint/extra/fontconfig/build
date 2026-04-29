@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+patch -p1 < no-gperf.patch
+
+export DESTDIR="$1"
+
+meson setup \
+    -Dprefix=/usr \
+    -Dxml-dir=/etc/fonts \
+    -Ddoc=disabled \
+    -Dnls=disabled \
+    -Dtests=disabled \
+    output
+
+ninja -C output
+ninja -C output install
