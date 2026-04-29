@@ -1,0 +1,22 @@
+diff --git a/installer/__main__.py b/installer/__main__.py
+index b7a7445..7bc62a3 100644
+--- a/installer/__main__.py
++++ b/installer/__main__.py
+@@ -36,7 +36,7 @@ def _get_main_parser() -> argparse.ArgumentParser:
+         metavar="level",
+         type=int,
+         choices=[0, 1, 2],
+-        help="generate bytecode for the specified optimization level(s) (default=0, 1)",
++        help="generate bytecode for the specified optimization level(s) (default=0)",
+     )
+     parser.add_argument(
+         "--no-compile-bytecode",
+@@ -94,7 +94,7 @@ def _main(cli_args: Sequence[str], program: str | None = None) -> None:
+     if args.no_compile_bytecode:
+         bytecode_levels = []
+     elif not bytecode_levels:
+-        bytecode_levels = [0, 1]
++        bytecode_levels = [0]
+ 
+     for wheel in args.wheel:
+         with WheelFile.open(wheel) as source:

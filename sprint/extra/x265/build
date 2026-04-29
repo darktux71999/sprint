@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+patch -p1 < cmake-4.patch
+
+export DESTDIR="$1"
+
+cmake source \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Release
+
+cmake --build .
+cmake --install .

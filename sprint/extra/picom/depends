@@ -1,0 +1,13 @@
+libX11
+libconfig
+libepoxy
+libev
+libxcb
+meson   make 
+pixman
+pkgconf make 
+samurai make 
+uthash  make 
+xcb-util
+xcb-util-image
+xcb-util-renderutil
