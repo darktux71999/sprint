@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+patch -p1 < no-bash-and-chown.patch
+
+export CFLAGS="$CFLAGS -DOVERRIDE_SYSTEM_STATX"
+
+./configure \
+    --prefix=/usr \
+    --enable-editline=yes \
+    --enable-lib64=no \
+    --disable-static
+
+make DIST_ROOT="$1" PKG_ROOT_SBIN_DIR=/usr/bin PKG_ROOT_LIB_DIR=/usr/lib
+make DIST_ROOT="$1" PKG_ROOT_SBIN_DIR=/usr/bin PKG_ROOT_LIB_DIR=/usr/lib install install-dev
+
+rm -rf "$1/usr/share/doc"
