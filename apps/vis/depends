@@ -1,4 +1,0 @@
-libtermkey make
-lpeg       make
-lua        make
-ncurses

@@ -1,7 +1,0 @@
-pkgconf
-python
-python-gpep517 make
-python-installer make
-python-setuptools make
-python-wheel make
-samurai

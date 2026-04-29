@@ -1,9 +1,0 @@
-#!/bin/sh -e
-
-./configure \
-	--prefix=/usr \
-	--mandir=/usr/share/man \
-	--sysconfdir=/etc/mtools
-	
-make
-make DESTDIR="$1" install

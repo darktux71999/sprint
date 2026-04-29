@@ -1,5 +1,0 @@
-expat
-freetype-harfbuzz
-gperf   make
-meson   make
-pkgconf make

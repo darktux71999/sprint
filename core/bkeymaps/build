@@ -1,6 +1,0 @@
-#!/bin/sh -e
-
-make DESTDIR="$1" install
-
-cp -fr colemak "$1/usr/share/bkeymaps"
-
