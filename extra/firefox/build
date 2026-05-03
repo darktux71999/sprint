@@ -7,7 +7,7 @@ done
 sed '/UNZIP/d' toolkit/moz.configure > _
 mv -f _ toolkit/moz.configure
 
-sed 's/\("files":{"\)[^}]*/\1/' third_party/rust/encoding_rs/.cargo-checksum.json > _
+sed 's/\("files":{\)[^}]*/\1/' third_party/rust/encoding_rs/.cargo-checksum.json > _
 mv -f _ third_party/rust/encoding_rs/.cargo-checksum.json
 
 # If using libc++, CXXSTDLIB needs to be set manually.
@@ -35,16 +35,15 @@ ac_add_options --libdir=/usr/lib
 ac_add_options --enable-strip
 ac_add_options --enable-release
 ac_add_options --enable-rust-simd
-ac_add_options --enable-linker=lld
 ac_add_options --enable-audio-backends=alsa
 ac_add_options --enable-install-strip
 ac_add_options --enable-official-branding
 ac_add_options --enable-application=browser
 ac_add_options --enable-optimize
-ac_add_options --disable-jemalloc
 ac_add_options --with-system-ffi
 ac_add_options --with-system-jpeg
 ac_add_options --with-system-libvpx
+ac_add_options --enable-linker=lld
 ac_add_options --with-system-nspr
 ac_add_options --with-system-nss
 ac_add_options --with-system-pixman

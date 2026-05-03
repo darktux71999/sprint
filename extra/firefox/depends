@@ -10,30 +10,12 @@ freetype-harfbuzz
 gdk-pixbuf
 glib
 gtk+3
-libICE
-libSM
-libX11
-libXau
-libXcomposite
-libXcursor
-libXdamage
-libXext
-libXfixes
-libXi
-libXinerama
-libXrandr
-libXrender
-libXt
-libXtst
-libXxf86vm
 libdrm
 libffi
 libjpeg-turbo
 libpng
 libvpx
 libwebp
-libxcb
-libxshmfence
 llvm          make
 m4            make
 mesa

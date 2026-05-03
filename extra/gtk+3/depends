@@ -3,6 +3,13 @@ fontconfig
 freetype-harfbuzz
 gdk-pixbuf
 glib
+libXcomposite
+libXcursor
+libXdamage
+libXext
+libXi
+libXinerama
+libXrandr
 libepoxy
 libxkbcommon
 mesa
@@ -10,5 +17,3 @@ meson   make
 pango
 pkgconf make
 python  make
-wayland
-wayland-protocols make
