@@ -1,1 +1,1 @@
-lua make
+luajit make
