@@ -1,11 +1,21 @@
 #!/bin/sh -e
 
-patch -p1 < wl-clipboard.patch
+# bypass version check: LuaJIT reports 501, vis requires >=502
+sed -i 's/#if LUA_VERSION_NUM < 502/#if 0 \/* LuaJIT compat *\//' configure
 
-./configure \
-    --prefix=/usr \
-    --enable-lua \
-    --enable-lpeg-static
+# add luajit to the pkg-config search list
+sed -i 's/for liblua in lua /for liblua in luajit lua /' configure
+
+# Lua 5.2+ API shims for LuaJIT (LUA_VERSION_NUM=501)
+sed -i '/^#include <lauxlib.h>$/a\
+\
+#if LUA_VERSION_NUM == 501\
+#define lua_setuservalue lua_setfenv\
+#define lua_getuservalue lua_getfenv\
+typedef struct { FILE *f; lua_CFunction closef; } luaL_Stream;\
+#endif' vis-lua.h
+
+./configure --prefix=/usr --enable-lua --enable-lpeg-static
 
 make
 make DESTDIR="$1" install

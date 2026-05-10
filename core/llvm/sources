@@ -1,10 +1,10 @@
-https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.3/llvm-project-22.1.3.src.tar.xz
+https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.4/llvm-project-22.1.4.src.tar.xz
 patches/0001-llvm-always-set-a-larger-stack-size-explicitly.patch
 patches/0002-llvm-musl-workarounds.patch
-patches/0003-llvm-fix-some-MF_EXEC-related-test-failures-on-aarch.patch
 patches/0004-llvm-disable-dependency-on-libexecinfo-everywhere.patch
 patches/0006-compiler-rt-default-to-libc-for-sanitizers.patch
 patches/0007-compiler-rt-build-crt-in-runtimes-build.patch
+patches/0008-compiler-rt-lsan-basic-musl-fixes-on-various-archs.patch
 patches/0009-compiler-rt-HACK-hwasan-build-on-x86_64.patch
 patches/0010-compiler-rt-libcxx-abi-libunwind-HACK-force-fno-lto.patch
 patches/0011-compiler-rt-HACK-always-compile-in-gcc_personality_v.patch
@@ -22,7 +22,6 @@ patches/0022-clang-error-when-using-ifunc-attribute-on-unsupporte.patch
 patches/0023-clang-link-libcxxabi-on-linux-when-using-libc.patch
 patches/0024-Get-rid-of-spurious-trailing-space-in-__clang_versio.patch
 patches/0025-clang-implicitly-include-stdc-predef.h.patch
-patches/0026-32-bit-musl-sanitizer-fixes.patch
 patches/0027-fix-scan-build.patch
 patches/0028-libcxx-default-to-type-2.patch
 files/c89

@@ -1,0 +1,13 @@
+/var/db/kiss/installed/gcompat/version
+/var/db/kiss/installed/gcompat/sources
+/var/db/kiss/installed/gcompat/manifest
+/var/db/kiss/installed/gcompat/checksums
+/var/db/kiss/installed/gcompat/build
+/var/db/kiss/installed/gcompat/
+/var/db/kiss/installed/
+/var/db/kiss/
+/var/db/
+/var/
+/lib/libgcompat.so.0
+/lib/ld-linux-x86-64.so.2
+/lib/

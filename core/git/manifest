@@ -377,6 +377,7 @@
 /usr/lib/git-core/git-http-fetch
 /usr/lib/git-core/git-http-backend
 /usr/lib/git-core/git-hook
+/usr/lib/git-core/git-history
 /usr/lib/git-core/git-help
 /usr/lib/git-core/git-hash-object
 /usr/lib/git-core/git-grep
