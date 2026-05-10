@@ -22,9 +22,11 @@ meson setup \
     -Dplatforms=x11 \
     -Dglx=auto \
     -Degl=enabled \
+    -Dgallium-drivers=nouveau \
+    -Dgallium-va=enabled \
     -Dvalgrind=false \
     -Dzstd=disabled \
-    -Dglvnd="${glvnd_enabled:-true}" \
+    -Dglvnd=false  \
     -Dvideo-codecs=vc1dec,h264dec,h264enc,h265dec,h265enc \
     -Dvulkan-drivers='' \
     output
