@@ -2,6 +2,9 @@ bzip2
 cairo
 fontconfig
 freetype-harfbuzz
+glib
+libX11
+libXext
 libjpeg-turbo
 libpng
 libwebp

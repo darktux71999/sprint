@@ -1,6 +1,7 @@
 /var/db/kiss/installed/cairo/version
 /var/db/kiss/installed/cairo/sources
 /var/db/kiss/installed/cairo/manifest
+/var/db/kiss/installed/cairo/esources
 /var/db/kiss/installed/cairo/depends
 /var/db/kiss/installed/cairo/checksums
 /var/db/kiss/installed/cairo/build

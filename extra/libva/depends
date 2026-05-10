@@ -1,0 +1,10 @@
+libX11
+libXext
+libXfixes
+libdrm
+libxcb
+linux-headers make
+mesa
+meson         make
+pkgconf       make
+samurai       make

@@ -18,11 +18,15 @@
     --enable-libx264 \
     --enable-libx265 \
     --enable-libxvid \
+    --enable-libdav1d \
     --enable-nonfree \
     --enable-openssl \
     --enable-shared \
     --enable-version3 \
+    --enable-vaapi \
+    --enable-runtime-cpudetect \
     --x86asmexe=nasm
+
 
 make
 make DESTDIR="$1" install

@@ -1,0 +1,6 @@
+libX11
+libdrm
+libva
+mesa    make
+meson   make
+pkgconf make

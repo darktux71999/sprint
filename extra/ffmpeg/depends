@@ -1,11 +1,17 @@
 alsa-lib
+bzip2
+fontconfig
+freetype-harfbuzz
 lame
+libX11
 libass
 libdrm
 libogg
+libva
 libvorbis
 libvpx
 libwebp
+libxcb
 linux-headers make
 nasm          make
 openssl
@@ -14,3 +20,5 @@ pkgconf make
 x264
 x265
 xvidcore
+xz
+zlib

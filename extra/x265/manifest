@@ -1,6 +1,5 @@
 /var/db/kiss/installed/x265/version
 /var/db/kiss/installed/x265/sources
-/var/db/kiss/installed/x265/patches/cmake-4.patch
 /var/db/kiss/installed/x265/patches/
 /var/db/kiss/installed/x265/manifest
 /var/db/kiss/installed/x265/depends
@@ -14,7 +13,7 @@
 /var/
 /usr/lib/pkgconfig/x265.pc
 /usr/lib/pkgconfig/
-/usr/lib/libx265.so.212
+/usr/lib/libx265.so.216
 /usr/lib/libx265.so
 /usr/lib/libx265.a
 /usr/lib/
