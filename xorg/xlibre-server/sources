@@ -1,1 +1,3 @@
-git+https://github.com/X11Libre/xserver#xlibre-xserver-25.1.7
+git+https://github.com/X11Libre/xserver.git
+#https://github.com/X11Libre/xserver/archive/refs/tags/xlibre-xserver-25.1.7.tar.gz
+patches/fix-arc4random-getrandom.patch
