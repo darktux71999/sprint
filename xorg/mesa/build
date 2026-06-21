@@ -23,7 +23,6 @@ meson setup \
     -Dglx=auto \
     -Degl=enabled \
     -Dgallium-drivers=nouveau \
-    -Dgallium-va=enabled \
     -Dvalgrind=false \
     -Dzstd=disabled \
     -Dglvnd=false  \
@@ -33,3 +32,5 @@ meson setup \
 
 ninja -C output
 ninja -C output install
+
+#    -Dgallium-va=enabled \
