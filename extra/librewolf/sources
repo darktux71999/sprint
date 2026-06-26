@@ -1,0 +1,17 @@
+https://codeberg.org/api/packages/librewolf/generic/librewolf-source/152.0.1-2/librewolf-152.0.1-2.source.tar.gz
+patches/atoi.patch
+patches/clang-memory-throw-gcc.patch
+patches/fix-fortify-system-wrappers.patch
+patches/fix-gcc-ffmpeg.patch
+patches/fix-header-musl.patch
+patches/fix-missing-cstdint.patch
+patches/fix-musl-redefined-prctl_mm_map.patch
+patches/fix-rust-target-pc-vendor.patch
+patches/fix-webrtc-pid_t.patch
+patches/google-sucks.patch
+patches/libcxx18.patch
+patches/musl-sandbox.patch
+patches/no-atk.patch
+patches/no-ccache-stats.patch
+patches/no-dbus.patch
+patches/no-fribidi.patch

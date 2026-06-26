@@ -1,6 +1,5 @@
-https://golang.org/dl/go1.26.2.src.tar.gz
+https://golang.org/dl/go1.26.4.src.tar.gz
 patches/posix-build.patch
 patches/0001-cmd-link-prefer-musl-s-over-glibc-s-ld.so-during-dyn.patch
-patches/arm64-no-gold.patch
 patches/disable-auto-go-download.patch
 patches/revert-erms-memmove.patch

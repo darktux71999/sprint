@@ -14,9 +14,9 @@ EOF
 export CFLAGS="$CFLAGS -fno-semantic-interposition"
 export LDFLAGS="$LDFLAGS -fno-semantic-interposition"
 
-for patch in *.patch; do
-    patch -p1 < "$patch"
-done
+#for patch in *.patch; do
+    #patch -p1 < "$patch"
+#done
 
 ./configure \
     --prefix=/usr \

@@ -1,0 +1,66 @@
+librewolf
+________________________________________________________________________________
+
+LibreWolf is a custom and independent version of Firefox, with the primary goals
+of privacy, security and user freedom. It is the community driven successor of
+LibreFox. [0]
+
+Upstream: https://librewolf.net/
+
+
+[000] Index
+________________________________________________________________________________
+
+* Installation ........................................................... [001]
+  * Runtime Dependencies ................................................. [002]
+* Setup .................................................................. [003]
+* Usage .................................................................. [004]
+* References ............................................................. [005]
+
+
+[001] Installation
+________________________________________________________________________________
+
++------------------------------------------------------------------------------+
+|                                                                              |
+|  $ kiss b librewolf                                                          |
+|                                                                              |
++------------------------------------------------------------------------------+
+
+
+--[002] Runtime Dependencies ----------------------------------------------------
+
+  LibreWolf needs a few additional things to be fully functional. One is an
+  icon theme and the other is a font. If you have already installed the fonts
+  and icon theme of your choosing, this step can be skipped.
+
+  +----------------------------------------------------------------------------+
+  |                                                                            |
+  |   $ kiss b [hicolor-icon-theme|adwaita-icon-theme]                         |
+  |   $ kiss b ttf-croscore                                                    |
+  |                                                                            |
+  +----------------------------------------------------------------------------+
+
+
+[003] Setup
+________________________________________________________________________________
+
+As of Firefox 91. There is no need to set special environment variables to
+enable Wayland support (in a Wayland only environment like ours). The browser
+should start with no further configuration.
+
+LibreWolf comes with a librewolf.cfg file that sets privacy-focused preferences
+by default. This can be customized in /usr/lib/librewolf/librewolf.cfg.
+
+
+[004] Usage
+________________________________________________________________________________
+
+Refer to the browser's help output and online documentation for further
+information.
+
+
+[005] References
+________________________________________________________________________________
+
+[0] https://librewolf.net/
