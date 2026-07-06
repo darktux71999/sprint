@@ -1,0 +1,31 @@
+#!/bin/sh -e
+
+JAVA_HOME="usr/lib/jvm/java-17-openjdk"
+dest="$1/$JAVA_HOME"
+mkdir -p "$dest"
+
+find . -mindepth 1 -maxdepth 1 -exec cp -a {} "$dest/" \;
+
+mkdir -p "$1/usr/bin"
+for f in "$dest/bin/"*; do
+    [ -f "$f" ] || continue
+    name="${f##*/}"
+    ln -sf "../lib/jvm/java-17-openjdk/bin/$name" "$1/usr/bin/$name"
+done
+
+if [ -d "$dest/man/man1" ]; then
+    mkdir -p "$1/usr/share/man/man1"
+    for f in "$dest/man/man1/"*; do
+        [ -f "$f" ] || continue
+        name="${f##*/}"
+        ln -sf "../../../../lib/jvm/java-17-openjdk/man/man1/$name" \
+            "$1/usr/share/man/man1/$name"
+    done
+fi
+
+mkdir -p "$1/usr/lib/jvm"
+ln -sf "java-17-openjdk" "$1/usr/lib/jvm/default"
+
+rm -f "$dest/lib/security/cacerts"
+ln -sf "../../../../../../etc/ssl/certs/java/cacerts" \
+    "$dest/lib/security/cacerts"
