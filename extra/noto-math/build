@@ -1,0 +1,7 @@
+#!/bin/sh -e
+
+mkdir -p "$1/usr/share/fonts/noto"
+
+cp NotoSansMath*.ttf "$1/usr/share/fonts/noto/"
+
+fc-cache -f "$1/usr/share/fonts"

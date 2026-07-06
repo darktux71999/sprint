@@ -1,0 +1,8 @@
+#!/bin/sh -e
+
+mkdir -p "$1/usr/share/fonts/nerd-fonts"
+
+cp SymbolsNerdFont*.ttf "$1/usr/share/fonts/nerd-fonts/"
+
+# Build font cache at install time
+fc-cache -f "$1/usr/share/fonts"
