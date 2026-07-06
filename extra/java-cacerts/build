@@ -1,21 +1,7 @@
 #!/bin/sh -e
 
-# Script to update Java cacerts from system trust store
-# Requires p11-kit
+# Minimal Java cacerts directory
+# Populate /etc/ssl/certs/java/cacerts with your CA certificates
+# or symlink to your system trust store.
 
-mkdir -p "$1/etc/ca-certificates/update.d"
-
-cat > "$1/etc/ca-certificates/update.d/java-cacerts" << 'SCRIPT'
-#!/bin/sh
-
-/usr/bin/mkdir -p /etc/ssl/certs/java > /dev/null 2>&1
-
-exec /usr/bin/trust extract \
-    --overwrite \
-    --format=java-cacerts \
-    --filter=ca-anchors \
-    --purpose server-auth \
-    /etc/ssl/certs/java/cacerts
-SCRIPT
-
-chmod 755 "$1/etc/ca-certificates/update.d/java-cacerts"
+mkdir -p "$1/etc/ssl/certs/java"
