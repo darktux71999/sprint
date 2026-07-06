@@ -2,7 +2,10 @@
 
 mkdir -p "$1/usr/share/fonts/nerd-fonts"
 
-cp SymbolsNerdFont*.ttf "$1/usr/share/fonts/nerd-fonts/"
+# KISS doesn't extract .zip natively, do it manually
+unzip -o NerdFontsSymbolsOnly.zip -d _extract
+cp _extract/*.ttf "$1/usr/share/fonts/nerd-fonts/" 2>/dev/null || true
+cp _extract/*.otf "$1/usr/share/fonts/nerd-fonts/" 2>/dev/null || true
+rm -rf _extract
 
-# Build font cache at install time
 fc-cache -f "$1/usr/share/fonts"

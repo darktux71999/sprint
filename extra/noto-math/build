@@ -2,6 +2,9 @@
 
 mkdir -p "$1/usr/share/fonts/noto"
 
-cp NotoSansMath*.ttf "$1/usr/share/fonts/noto/"
+unzip -o NotoSansMath-v3.000.zip -d _extract
+cp _extract/*.ttf "$1/usr/share/fonts/noto/" 2>/dev/null || true
+cp _extract/*.otf "$1/usr/share/fonts/noto/" 2>/dev/null || true
+rm -rf _extract
 
 fc-cache -f "$1/usr/share/fonts"
