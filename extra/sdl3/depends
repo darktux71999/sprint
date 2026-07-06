@@ -1,0 +1,18 @@
+cmake make
+libX11
+libXScrnSaver
+libXcursor
+libXext
+libXfixes
+libXi
+libXrandr
+libXrender
+libXxf86vm
+libdrm
+libudev-zero
+libxcb
+libxkbcommon
+linux-headers make
+mesa
+pkgconf make
+samurai make

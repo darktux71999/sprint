@@ -1,0 +1,24 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DSDL_ALSA=OFF \
+    -DSDL_ARTS=OFF \
+    -DSDL_ESD=OFF \
+    -DSDL_JACK=OFF \
+    -DSDL_NAS=OFF \
+    -DSDL_PULSEAUDIO=OFF \
+    -DSDL_PIPEWIRE=OFF \
+    -DSDL_SNDIO=OFF \
+    -DSDL_RPATH=OFF \
+    -DSDL_WAYLAND=OFF \
+    -DSDL_IBUS=OFF \
+    -DSDL_DBUS=OFF \
+    -DSDL_HIDAPI_LIBUSB=OFF \
+    -DSDL_KMSDRM=OFF
+
+cmake --build   build
+cmake --install build

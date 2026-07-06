@@ -1,0 +1,7 @@
+bzip2
+lz4
+openssl
+xz
+zlib
+zstd
+pkgconf make
