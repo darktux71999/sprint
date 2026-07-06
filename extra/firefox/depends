@@ -2,7 +2,6 @@ alsa-lib
 bzip2
 cairo
 cbindgen      make
-clang         make
 expat
 ffmpeg
 fontconfig
