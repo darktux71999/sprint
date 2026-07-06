@@ -1,0 +1,17 @@
+#!/bin/sh -e
+
+# Adapted from Chimera Linux cports
+
+CFLAGS="$CFLAGS -DLARGE_FILE_SUPPORT"
+
+make -f unix/Makefile \
+    prefix=/usr \
+    LOCAL_ZIP="$CFLAGS" \
+    CC="$CC" \
+    CPP="$CC -E" \
+    LFLAGS2="$CFLAGS $LDFLAGS" \
+    zips
+
+mkdir -p "$1/usr/bin" "$1/usr/share/man/man1"
+make -f unix/Makefile install \
+    prefix="$1/usr"
