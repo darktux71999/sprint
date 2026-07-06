@@ -1,0 +1,9 @@
+libjpeg-turbo
+libpng
+libxcb
+pixman
+xcb-util-image
+autoconf make
+automake make
+libtool make
+pkgconf make
