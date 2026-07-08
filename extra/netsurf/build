@@ -1,7 +1,5 @@
 #!/bin/sh -e
 
-cd netsurf-all-*
-
 # GTK3 frontend only, minimal build
 make TARGET=gtk3 PREFIX=/usr
 
