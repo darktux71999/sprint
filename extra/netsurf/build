@@ -1,7 +1,9 @@
 #!/bin/sh -e
 
-# Busybox install lacks GNU -C/-T flags
-export INSTALL=install
+# Netsurf uses GNU install -C which busybox doesn't support.
+# Force sed on the Makefile.tools before build.
+
+sed -i 's/INSTALL ?= install -C/INSTALL ?= install/' buildsystem/makefiles/Makefile.tools
 patch -p1 < non-coreutils-install-compatibility.patch || true
 
 make TARGET=gtk3 PREFIX=/usr
