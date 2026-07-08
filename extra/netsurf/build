@@ -1,9 +1,8 @@
 #!/bin/sh -e
 
-# KISS already placed us inside the extracted source dir.
-# Patches are applied flat (without patches/ prefix).
-
-patch -p1 < non-coreutils-install-compatibility.patch
+# Busybox install lacks GNU -C/-T flags
+export INSTALL=install
+patch -p1 < non-coreutils-install-compatibility.patch || true
 
 make TARGET=gtk3 PREFIX=/usr
 
