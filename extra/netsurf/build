@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+cd netsurf-all-*
+
+# GTK3 frontend only, minimal build
+make TARGET=gtk3 PREFIX=/usr
+
+mkdir -p "$1/usr/bin" "$1/usr/share/netsurf"
+
+cp nsgtk "$1/usr/bin/netsurf"
+cp -r frontends/gtk/res "$1/usr/share/netsurf/"

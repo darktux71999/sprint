@@ -1,0 +1,12 @@
+bison make
+curl
+expat
+flex make
+freetype-harfbuzz
+gperf make
+gtk+3
+libjpeg-turbo
+libpng
+libwebp
+openssl
+pkgconf make
