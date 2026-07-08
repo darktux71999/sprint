@@ -1,0 +1,25 @@
+#!/bin/sh -e
+
+mkdir -p "$1/usr/share/nand2tetris"
+
+unzip -o nand2tetris.zip -d "$1/usr/share/nand2tetris/"
+
+# Wrapper scripts
+mkdir -p "$1/usr/bin"
+
+cat > "$1/usr/bin/hardware-simulator" << 'EOF'
+#!/bin/sh
+exec java -cp /usr/share/nand2tetris/tools/builtInChips:/usr/share/nand2tetris/tools HardwareSimulator "$@"
+EOF
+
+cat > "$1/usr/bin/cpu-emulator" << 'EOF'
+#!/bin/sh
+exec java -cp /usr/share/nand2tetris/tools/builtInChips:/usr/share/nand2tetris/tools CPUEmulator "$@"
+EOF
+
+cat > "$1/usr/bin/assembler" << 'EOF'
+#!/bin/sh
+exec java -cp /usr/share/nand2tetris/tools HackAssembler "$@"
+EOF
+
+chmod +x "$1/usr/bin/hardware-simulator" "$1/usr/bin/cpu-emulator" "$1/usr/bin/assembler"
