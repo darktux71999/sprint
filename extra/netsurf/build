@@ -11,5 +11,5 @@ sed -i '/netsurf\.xpm/d' netsurf/frontends/gtk/res/ui.gresource.xml 2>/dev/null 
 make TARGET=gtk3 PREFIX=/usr
 
 mkdir -p "$1/usr/bin" "$1/usr/share/netsurf"
-cp nsgtk "$1/usr/bin/netsurf"
+cp nsgtk3 "$1/usr/bin/netsurf"
 cp -r frontends/gtk/res "$1/usr/share/netsurf/"
