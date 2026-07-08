@@ -1,5 +1,10 @@
 #!/bin/sh -e
 
+cd netsurf-all-*
+
+# Fix busybox install compatibility (-C and -T flags)
+patch -p1 < ../non-coreutils-install-compatibility.patch
+
 # GTK3 frontend only, minimal build
 make TARGET=gtk3 PREFIX=/usr
 

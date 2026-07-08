@@ -1,1 +1,2 @@
 https://download.netsurf-browser.org/netsurf/releases/source-full/netsurf-all-3.11.tar.gz
+patches/non-coreutils-install-compatibility.patch
