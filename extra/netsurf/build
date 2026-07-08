@@ -1,11 +1,10 @@
 #!/bin/sh -e
 
-cd netsurf-all-*
+# KISS already placed us inside the extracted source dir.
+# Patches are applied flat (without patches/ prefix).
 
-# Fix busybox install compatibility (-C and -T flags)
-patch -p1 < ../non-coreutils-install-compatibility.patch
+patch -p1 < non-coreutils-install-compatibility.patch
 
-# GTK3 frontend only, minimal build
 make TARGET=gtk3 PREFIX=/usr
 
 mkdir -p "$1/usr/bin" "$1/usr/share/netsurf"
