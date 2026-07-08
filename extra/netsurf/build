@@ -1,6 +1,6 @@
 #!/bin/sh -e
 
-# Fix busybox install -C flag
+# Fix busybox install -C flag in source and installed copy
 sed -i 's/INSTALL ?= install -C/INSTALL ?= install/' buildsystem/makefiles/Makefile.tools
 patch -p1 < non-coreutils-install-compatibility.patch || true
 
@@ -9,7 +9,8 @@ sed -i '/netsurf\.xpm/d' netsurf/frontends/gtk/res/netsurf.gresource.xml 2>/dev/
 
 make TARGET=gtk3 PREFIX=/usr
 
-mkdir -p "$1/usr/bin" "$1/usr/share/netsurf"
+# Fix the installed Makefile.tools (used by install target)
+sed -i 's/INSTALL ?= install -C/INSTALL ?= install/' inst-gtk3/share/netsurf-buildsystem/makefiles/Makefile.tools 2>/dev/null || true
 
-cp netsurf/nsgtk3 "$1/usr/bin/netsurf"
-cp -r netsurf/frontends/gtk/res "$1/usr/share/netsurf/"
+# Override INSTALL for all sub-makes
+make TARGET=gtk3 PREFIX=/usr DESTDIR="$1" INSTALL=install install
