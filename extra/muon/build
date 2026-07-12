@@ -38,4 +38,5 @@ build-boot/muon setup \
 
 cd build
 samu
-samu install
+cd ..
+PATH="$PATH:$PWD/build-boot" build-boot/muon -C build install
