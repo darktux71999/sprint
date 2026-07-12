@@ -1,0 +1,4 @@
+libxkbcommon
+mesa
+meson   make
+pkgconf make

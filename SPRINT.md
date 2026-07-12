@@ -106,8 +106,8 @@ La búsqueda de paquetes sigue el orden de `KISS_PATH`:
 3. `/var/db/kiss/installed` (último recurso)
 
 ```bash
-# Ejemplo: sprint tiene prioridad sobre cports
-export KISS_PATH="/home/darktux/package-repos/sprint/core:/home/darktux/package-repos/sprint/extra:/home/darktux/package-repos/sprint/xorg"
+# Ejemplo: sprint tiene prioridad, luego repo/kiss-xorg/community como respaldo
+export KISS_PATH="/home/darktux/package-repos/sprint/core:/home/darktux/package-repos/sprint/extra:/home/darktux/package-repos/sprint/xorg:/home/darktux/package-repos/repo/core:/home/darktux/package-repos/repo/extra:/home/darktux/package-repos/repo/wayland:/home/darktux/package-repos/kiss-xorg/xorg:/home/darktux/package-repos/kiss-xorg/extra:/home/darktux/package-repos/kiss-xorg/community:/home/darktux/package-repos/community/community"
 ```
 
 ---
@@ -469,9 +469,11 @@ Push: `git push origin main` (SSH: `git@codeberg.org:darktux71999/sprint.git`)
 
 ---
 
-## Sistema de inicio (sx + busybox init)
+## Sistema de inicio
 
-El sistema usa `busybox init` + `runsv` (runit-style).
+**PID 1:** `busybox init` (vía baseinit)
+**Supervisor de servicios:** `runsvdir` / `runsv` (runit-style)
+**Lanzador de sesión X:** `sx` (similar a `startx`, no es parte del init)
 
 ### Secuencia de arranque
 
@@ -618,3 +620,336 @@ KISS resuelve dependencias recursivamente. Si A depende de B y B depende de C, K
 - `librewolf-theme/` — userChrome.css + user.js
 - `netsurf/` — browser config
 - `chat` — LLM chat wrapper
+
+---
+
+## Style Guide para builds (kisscommunity.org)
+
+Referencia: https://kisscommunity.org/kiss/style-guide/
+
+### GENERAL
+
+- Todo shell code debe pasar `shellcheck`. Falsos positivos deben tener rationale comentado.
+- Usar 4 espacios para indentación.
+- Líneas máx 80 caracteres.
+- Shebang POSIX con `-e` para exit on error (o `-ef` si se requiere word-splitting). Línea en blanco debajo.
+- Comentarios: mayúscula inicial, ortografía/gramática correcta, explicar **por qué** no **qué**.
+- Sin llaves en variables si no se necesita: `$var` no `${var}`.
+- Sin quotes innecesarias: `[ "$var" = test ]` no `[ "$var" = "test" ]`.
+- Quotes en strings completos: `"$1/usr/bin/file"` no `"$1"/usr/bin/file`.
+- Alinear argumentos en bloques de comandos.
+- Preferir `mkdir` + `cp` sobre `install`.
+- Preferir `"${CC:-cc}"` sobre `gcc`.
+- Siempre `-p` con `mkdir`.
+- Siempre `printf`, nunca `echo`.
+
+### BUILD
+
+#### GNU Autotools
+```sh
+./configure \
+    --prefix=/usr \
+    --more_args_here
+
+make
+make DESTDIR="$1" install
+```
+Evitar `autogen.sh`/`autoreconf`. Si es inevitable, preferir `autoreconf`.
+
+#### Meson
+```sh
+export DESTDIR="$1"
+
+meson setup \
+    -Dprefix=/usr \
+    -Dexample=false \
+    output
+
+ninja -C output
+ninja -C output install
+```
+
+#### CMake
+```sh
+export DESTDIR="$1"
+
+cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DFLAG=1
+
+cmake --build   build
+cmake --install build
+```
+
+#### Make
+```sh
+make
+make DESTDIR="$1" PREFIX=/usr install
+```
+Para muchas variables:
+```sh
+make \
+    PREFIX=/usr \
+    SBINDIR=/usr/bin \
+    OPT="$CFLAGS"
+
+make \
+    DESTDIR="$1" \
+    PREFIX=/usr \
+    install
+```
+Para variables que aplican a todos los targets:
+```sh
+mk() {
+    make \
+         PREFIX=/usr \
+         DESTDIR="$1" \
+         EXAMPLE=1 \
+         "$@"
+}
+
+mk
+mk install
+```
+
+#### Rust
+```sh
+cargo build --release
+install -Dm755 target/release/rg "$1/usr/bin/rg"
+```
+
+#### Go
+```sh
+export GOPATH="$PWD/go"
+export GO111MODULE=on
+
+go build \
+    -modcacherw \
+    -trimpath
+
+install -Dm755 lazygit "$1/usr/bin/lazygit"
+```
+Si existe `vendor/`:
+```sh
+go build -mod=vendor -further-options
+```
+
+#### Python
+```sh
+python setup.py build
+python setup.py install --prefix=/usr --root="$1"
+```
+
+### DEPENDS
+
+- Si no se necesita dependencia, eliminarla.
+- `gcc`, `make`, `musl` se asumen siempre disponibles → eliminarlos de depends.
+- Build-only markers con `make` (ej: `cmake make`).
+- Runtime deps sin `make`.
+- Archivo ordenado alfabéticamente.
+- Si está vacío, eliminar el archivo.
+
+### SOURCES
+
+- URLs HTTPS si posible.
+- Parches locales, no remotos: `patches/fix.patch` no URL.
+- No usar git repo si hay release tarball.
+- Quitar `www.` y `.git` de URLs si posible.
+
+### VERSION
+
+- Última versión upstream siempre.
+- Usar `git` no `9999` para versiones git.
+- Debe contener release: `1.0.0 1` no `1.0.0`.
+
+### PATCHES
+
+```sh
+patch -p1 < patch.patch
+
+# Múltiples parches
+for patch in *.patch; do
+    patch -p1 < "$patch"
+done
+```
+Todos los parches deben usar el mismo strip amount.
+
+---
+
+## KISS Package Manager — features y uso avanzado
+
+Referencia: https://kisscommunity.org/kiss/package-manager/
+
+### Runtime dependency detector
+
+KISS detecta dependencias dinámicas faltantes usando `ldd` sobre los binarios instalados. Si un build system trajo librerías no declaradas en `depends`, KISS las agrega automáticamente.
+
+```
+-> libXmu Checking for missing dependencies
+--- /home/dylan/conf/cache/kiss/build-4477/depends
++++ depends
+@@ -1,3 +1,8 @@
++libX11
++libXau
+ libXext
+ libXt
++libxcb
+ xorg-util-macros make
+```
+
+Esto permite que dependencias opcionales funcionen sin declaración explícita.
+
+### Sistema de alternativas dinámico
+
+Cualquier conflicto de archivos entre dos paquetes se convierte automáticamente en una alternativa.
+
+```bash
+# Listar alternativas disponibles
+kiss a
+
+# Cambiar a GNU grep
+kiss a gnugrep /usr/bin/grep
+
+# Cambiar todas las alternativas de un paquete (sbase)
+kiss a | grep ^sbase | kiss a -
+```
+
+La salida de `kiss a` es directamente usable como entrada para `kiss a`.
+
+### 3-way handshake para /etc/
+
+- Si el usuario modificó el archivo **y** el nuevo paquete trae cambios → se instala como `.new`.
+- Si el usuario **no** tocó el archivo → se overwrite automático.
+- Si el usuario tocó el archivo **pero** no cambió entre versiones → se salta.
+
+### Gestión de repositorios
+
+`KISS_PATH` funciona como `$PATH` — lista separada por `:` de directorios de repositorios. El orden define prioridad.
+
+```bash
+export KISS_PATH="/home/darktux/package-repos/sprint/core:/home/darktux/package-repos/sprint/extra"
+```
+
+#### Prevenir actualizaciones de un paquete
+
+```bash
+mkdir -p no_updates
+cp -r /var/db/kiss/installed/PKG_NAME no_updates/
+export KISS_PATH=/path/to/no_updates:$KISS_PATH
+```
+
+#### Bypass KISS_PATH (uso CRUX-like)
+
+```bash
+cd /path/to/repo/pkg
+kiss b   # usa el directorio actual como repo
+kiss i
+```
+
+### Hooks — ejemplos
+
+#### Logging de duración de build
+```sh
+PKG="$2"
+
+case $1 in
+    pre-build)
+        cat /proc/uptime > "${KISS_TMPDIR:-/tmp}/_kiss_start"
+    ;;
+
+    post-build)
+        IFS=. read -r _start _ < "${KISS_TMPDIR:-/tmp}/_kiss_start"
+        IFS=. read -r _end _ < /proc/uptime
+        rm -f "${KISS_TMPDIR:-/tmp}/_kiss_start"
+
+        (
+            _s=$((_end - _start))
+            _h=$((_s / 60 / 60 % 24))
+            _m=$((_s / 60 % 60))
+            [ "$_h" = 0 ] || _u="${_u}${_h}h "
+            [ "$_m" = 0 ] || _u="${_u}${_m}m "
+            printf "-> %s %s\n" "$PKG" "Build finished in ${_u:-${_s}s}"
+        )
+    ;;
+esac
+```
+
+#### Terminal title con progreso
+```sh
+case $1 in
+    queue-status|queue)
+        [ -t 2 ] && {
+            printf '\033]0;kiss: %s (%d/%d)\a' \
+                "$2" "${3:-?}" "${4:-?}" >&2
+        }
+    ;;
+esac
+```
+
+#### Drop to shell on build fail
+```sh
+case $1 in
+    build-fail)
+        printf "-> %s %s\a\n" "$2" "Dropped into shell"
+        sh >/dev/tty
+    ;;
+esac
+```
+
+### Tips
+
+- **GNU grep**: cambiar busybox grep por GNU grep da aceleración significativa: `kiss b gnugrep && kiss i gnugrep && kiss a gnugrep /usr/bin/grep`.
+- **Shallow clone**: KISS hace shallow clone por defecto. Para submodules, agregar `git submodule update --init` al build.
+
+---
+
+## Paquetes nuevos: webkit2gtk + dependencias faltantes
+
+Se agregaron 4 paquetes a `extra/`:
+
+| Paquete | Versión | Descripción |
+|---------|---------|-------------|
+| `libwpe` | 1.16.3 | Librería base para WPE WebKit (útil para otros paquetes) |
+| `wpebackend-fdo` | 1.16.1 | Backend FreeDesktop.org para WPE (útil para otros paquetes) |
+| `unifdef` | 2.12 | Preprocesador de condicionales C (build-time) |
+| `webkit2gtk` | 2.48.7 | Motor de renderizado web para GTK+3 (libsoup3) |
+
+**Nota:** webkit2gtk 2.48.x NO requiere libwpe ni wpebackend-fdo. Usa el renderer DMA-BUF que funciona sobre X11 y Wayland. libwpe/wpebackend-fdo se incluyen por si otros paquetes los necesitan.
+
+### webkit2gtk — build minimal
+
+Compilado con **máxima reducción de dependencias** (features desactivados):
+
+| Feature desactivado | Flag CMake | Dependencia ahorrada |
+|---------------------|-----------|----------------------|
+| Video/Audio | `ENABLE_VIDEO=OFF`, `ENABLE_WEB_AUDIO=OFF` | gstreamer + plugins |
+| Subtítulos/DRM | `ENABLE_MEDIA_SOURCE=OFF`, `ENABLE_ENCRYPTED_MEDIA=OFF` | gstreamer |
+| WebRTC | `ENABLE_WEB_RTC=OFF` | gstreamer webrtc |
+| Spellcheck | `ENABLE_SPELLCHECK=OFF` | enchant2 |
+| Geolocalización | `ENABLE_GEOLOCATION=OFF` | geoclue |
+| Gamepad | `ENABLE_GAMEPAD=OFF` | libmanette |
+| Síntesis voz | `ENABLE_SPEECH_SYNTHESIS=OFF` | flite |
+| WebGL/WebGPU/WebXR | `ENABLE_WEBGL=OFF`, `ENABLE_WEBGPU=OFF`, `ENABLE_WEBXR=OFF` | ANGLE, OpenXR |
+| Notificaciones | `ENABLE_NOTIFICATIONS=OFF` | libnotify |
+| MiniBrowser | `ENABLE_MINIBROWSER=OFF` | — |
+| WebDriver | `ENABLE_WEBDRIVER=OFF` | — |
+| Sandbox | `ENABLE_BUBBLEWRAP_SANDBOX=OFF` | bubblewrap, libseccomp, xdg-dbus-proxy |
+| Imagen extra | `USE_AVIF=OFF`, `USE_JPEGXL=OFF`, `USE_LCMS=OFF`, `USE_WOFF2=OFF` | libavif, libjxl, lcms2, woff2 |
+| Keyring | `USE_LIBSECRET=OFF` | libsecret |
+| Hiphenación | `USE_LIBHYPHEN=OFF` | hyphen |
+| GObject Introspection | `ENABLE_INTROSPECTION=OFF` | gobject-introspection |
+| Documentación | `ENABLE_DOCUMENTATION=OFF` | gi-docgen |
+
+**Toolchain:** LLVM/Clang con LTO thin, `-fuse-ld=lld`, debug symbols reducidos (`-g1`).
+
+**Dependencias totales (runtime):** ~22 paquetes directos
+
+### Orden de construcción
+
+```bash
+# Dependencias nuevas de sprint (si no están en KISS_PATH)
+kiss b unifdef && kiss i unifdef
+
+# webkit2gtk (~18GB disco, <1 hora en Xeon E5-2640 v3)
+kiss b webkit2gtk && kiss i webkit2gtk
+```

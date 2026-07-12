@@ -1,0 +1,22 @@
+atk
+cairo
+cmake   make
+gperf   make
+gtk+3
+harfbuzz-icu
+icu
+libXt
+libgcrypt
+libsoup3
+libtasn1
+libwebp
+libxml2
+libxslt
+mesa
+perl    make
+python  make
+ruby    make
+samurai make
+sqlite
+unifdef make
+bison   make
