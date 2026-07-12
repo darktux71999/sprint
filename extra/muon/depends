@@ -1,0 +1,3 @@
+samurai make
+linux-headers make
+pkgconf make
