@@ -36,5 +36,6 @@ build-boot/muon setup \
     -Dwebsite=disabled \
     build .
 
-samu -C build
-DESTDIR="$1" samu -C build install
+cd build
+samu
+samu install
