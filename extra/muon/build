@@ -22,7 +22,7 @@ build-boot/muon-bootstrap setup \
 
 samu -C build-boot
 
-# Use muon to do full build
+# Use muon to do full build (muon compiles + installs)
 PATH="$PATH:$PWD/build-boot" \
 build-boot/muon setup \
     -Dlibcurl=disabled \
@@ -36,7 +36,5 @@ build-boot/muon setup \
     -Dwebsite=disabled \
     build .
 
-cd build
-samu
-cd ..
-PATH="$PATH:$PWD/build-boot" build-boot/muon -C build install
+build-boot/muon -C build compile
+build-boot/muon -C build install
