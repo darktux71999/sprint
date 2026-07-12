@@ -3,12 +3,11 @@
 export DESTDIR="$1"
 
 # Bootstrap muon with just cc (no meson needed)
-CFLAGS=-DBOOTSTRAP_NO_SAMU ./bootstrap.sh build-boot
+./bootstrap.sh build
 
-# Use bootstrap to configure minimal build
-build-boot/muon-bootstrap setup \
-    -Dauto_features=disabled \
-    -Dwrap_mode=nodownload \
+# Configure minimal build pointing to /usr
+build/muon-bootstrap setup \
+    --prefix=/usr \
     -Dlibcurl=disabled \
     -Dlibarchive=disabled \
     -Dlibpkgconf=enabled \
@@ -18,23 +17,7 @@ build-boot/muon-bootstrap setup \
     -Dmeson-docs=disabled \
     -Dmeson-tests=disabled \
     -Dwebsite=disabled \
-    build-boot
+    build
 
-samu -C build-boot
-
-# Use muon to do full build (muon compiles + installs)
-PATH="$PATH:$PWD/build-boot" \
-build-boot/muon setup \
-    -Dlibcurl=disabled \
-    -Dlibarchive=disabled \
-    -Dlibpkgconf=enabled \
-    -Dsamurai=disabled \
-    -Dtracy=disabled \
-    -Dman-pages=disabled \
-    -Dmeson-docs=disabled \
-    -Dmeson-tests=disabled \
-    -Dwebsite=disabled \
-    build .
-
-build-boot/muon -C build compile
-build-boot/muon -C build install
+build/muon-bootstrap -C build samu
+build/muon -C build install
