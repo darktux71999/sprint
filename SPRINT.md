@@ -9,6 +9,109 @@ Repositorio de paquetes para una distribución Linux minimalista basada en:
 
 ---
 
+## KISS Package Manager
+
+KISS es un gestor de paquetes minimalista escrito en POSIX shell (~2000 líneas).
+
+### Comandos principales
+
+| Comando | Alias | Descripción |
+|---------|-------|-------------|
+| `kiss build pkg` | `kiss b pkg` | Compilar paquete(s) |
+| `kiss install pkg` | `kiss i pkg` | Instalar paquete(s) |
+| `kiss remove pkg` | `kiss r pkg` | Eliminar paquete(s) |
+| `kiss download pkg` | `kiss d pkg` | Solo descargar fuentes |
+| `kiss checksum pkg` | `kiss c pkg` | Regenerar checksums blake3 |
+| `kiss update` | `kiss u` | Actualizar repositorios (git pull) |
+| `kiss upgrade` | `kiss U` | Actualizar sistema completo |
+| `kiss list` | `kiss l` | Listar paquetes instalados |
+| `kiss search pkg` | `kiss s pkg` | Buscar paquete en repos |
+| `kiss alternatives` | `kiss a` | Gestionar alternativas |
+| `kiss preferred` | `kiss p` | Mostrar dueños de archivos con alternativas |
+| `kiss verify` | `kiss v` | Verificar checksums del paquete |
+| `kiss version` | | Versión del gestor (actualmente 6.2.0) |
+
+### Variables de entorno
+
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `KISS_PATH` | `/var/db/kiss/installed` | Ruta de repos separados por `:` (izquierda = mayor prioridad) |
+| `KISS_ROOT` | `/` | Root del sistema (para chroot) |
+| `KISS_PROMPT` | `1` | `0` = no pedir confirmación |
+| `KISS_CHOICE` | `0` | `1` = forzar instalación en conflictos |
+| `KISS_STRIP` | `1` | `0` = no strippear binarios |
+| `KISS_KEEPLOG` | `0` | `1` = conservar logs de build |
+| `KISS_HOOK` | vacío | Ruta a hooks separados por `:` |
+
+### Rutas internas
+
+| Ruta | Descripción |
+|------|-------------|
+| `/var/db/kiss/installed/` | Base de datos de paquetes instalados |
+| `~/.cache/kiss/sources/` | Fuentes descargadas (caché) |
+| `~/.cache/kiss/logs/` | Logs de builds (se borran si éxito) |
+| `~/.cache/kiss/proc/` | Directorios de build temporales |
+
+### Flujo interno de `kiss b pkg`
+
+```
+1. pkg_find       → buscar paquete en KISS_PATH
+2. pkg_depends    → resolver dependencias recursivamente
+3. pkg_source     → descargar fuentes remotas, copiar locales
+4. pkg_verify     → verificar blake3 checksums
+5. pkg_extract    → extraer tarballs (strips top dir), copiar parches
+6. pkg_build      → ejecutar ./build con $1=DESTDIR, $2=versión
+7. pkg_tar        → crear tarball con manifest
+8. pkg_install    → descomprimir tarball a / (si pedida)
+```
+
+### Hooks
+
+Los hooks se ejecutan en puntos específicos del ciclo. Se definen en `KISS_HOOK` (separados por `:`).
+
+```
+pre-source     post-source      # antes/después de descargar fuente
+pre-extract                     # antes de extraer
+pre-build       post-build      # antes/después de build
+build-fail                      # cuando build falla
+pre-install     post-install    # antes/después de instalar
+pre-remove      post-remove     # antes/después de eliminar
+pre-update      post-update     # antes/después de upgrade
+queue-status                    # progreso de la cola de builds
+```
+
+Formato: `hook_event paquete directorio`
+
+Los paquetes individuales pueden tener hooks en su directorio de base de datos instalado (post-install, post-remove).
+
+### Sistema de alternativas
+
+Cuando dos paquetes instalan el mismo archivo, KISS lo detecta y ofrece "alternativas":
+
+```bash
+# Ver alternativas disponibles
+kiss a
+
+# Cambiar alternativa (ej: cambiar java default)
+KISS_CHOICE=1 kiss i openjdk-17-bin
+```
+
+Los archivos en conflicto se mueven a `/var/db/kiss/choices/`.
+
+### Fuente de paquetes
+
+La búsqueda de paquetes sigue el orden de `KISS_PATH`:
+1. Repositorio izquierda (mayor prioridad)
+2. Repositorios siguientes
+3. `/var/db/kiss/installed` (último recurso)
+
+```bash
+# Ejemplo: sprint tiene prioridad sobre cports
+export KISS_PATH="/home/darktux/package-repos/sprint/core:/home/darktux/package-repos/sprint/extra:/home/darktux/package-repos/sprint/xorg"
+```
+
+---
+
 ## Estructura del repo
 
 ```
