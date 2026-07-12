@@ -7,7 +7,7 @@ export DESTDIR="$1"
 
 # Configure minimal build pointing to /usr
 build/muon-bootstrap setup \
-    --prefix=/usr \
+    -Dprefix=/usr \
     -Dlibcurl=disabled \
     -Dlibarchive=disabled \
     -Dlibpkgconf=enabled \

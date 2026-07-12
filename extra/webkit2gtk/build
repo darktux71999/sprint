@@ -106,7 +106,6 @@ cmake -B build -G Ninja \
     -DUSE_LIBSECRET="${secret:-ON}" \
     -DUSE_LCMS="${lcms:-ON}" \
     -DUSE_SYSPROF_CAPTURE=NO \
-    -DUSE_WOFF2="${woff2:-ON}" \
-    -DLTO_MODE=thin
+    -DUSE_WOFF2="${woff2:-ON}" 
 
-cmake --build build -j4
+cmake --build build -j12
