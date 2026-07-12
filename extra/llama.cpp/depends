@@ -1,0 +1,4 @@
+cmake make
+openssl
+samurai make
+linux-headers make
