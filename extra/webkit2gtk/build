@@ -18,6 +18,11 @@ export CXXFLAGS="$CXXFLAGS -g1"
 export CFLAGS="$CFLAGS -U_FORTIFY_SOURCE"
 export CXXFLAGS="$CXXFLAGS -U_FORTIFY_SOURCE"
 
+# Apply patches
+for patch in *.patch; do
+    patch -p1 < "$patch"
+done
+
 # Detect optional dependencies via pkg-config
 pkg-config --exists enchant2       || spellcheck=false
 pkg-config --exists gstreamer-1.0  || video=false
