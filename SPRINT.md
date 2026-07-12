@@ -905,50 +905,73 @@ esac
 
 ## Paquetes nuevos: webkit2gtk + dependencias faltantes
 
-Se agregaron 4 paquetes a `extra/`:
+
+Se agregaron 14 paquetes a `extra/` para autosuficiencia de sprint:
 
 | Paquete | Versión | Descripción |
 |---------|---------|-------------|
-| `libwpe` | 1.16.3 | Librería base para WPE WebKit (útil para otros paquetes) |
-| `wpebackend-fdo` | 1.16.1 | Backend FreeDesktop.org para WPE (útil para otros paquetes) |
+| `libwpe` | 1.16.3 | Librería base para WPE WebKit |
+| `wpebackend-fdo` | 1.16.1 | Backend FreeDesktop.org para WPE |
 | `unifdef` | 2.12 | Preprocesador de condicionales C (build-time) |
-| `webkit2gtk` | 2.48.7 | Motor de renderizado web para GTK+3 (libsoup3) |
+| `harfbuzz-icu` | 14.2.0 | ICU bindings para harfbuzz |
+| `icu` | 74.2 | Internacionalización Unicode |
+| `libgcrypt` | 1.12.2 | Criptografía |
+| `libgpg-error` | — | Códigos de error para libgcrypt |
+| `libsoup3` | 3.4.4 | Cliente HTTP para GLib |
+| `glib-networking` | 2.80.1 | TLS/network para GLib |
+| `libnghttp2` | — | HTTP/2 |
+| `libpsl` | — | Public Suffix List |
+| `libtasn1` | 4.21.0 | ASN.1 |
+| `libxslt` | 1.1.45 | XSLT |
+| `ruby` | 3.1.2 | Lenguaje de scripting (build-time) |
 
-**Nota:** webkit2gtk 2.48.x NO requiere libwpe ni wpebackend-fdo. Usa el renderer DMA-BUF que funciona sobre X11 y Wayland. libwpe/wpebackend-fdo se incluyen por si otros paquetes los necesitan.
+**Nota:** webkit2gtk 2.48.x NO requiere libwpe ni wpebackend-fdo.
+Usa el renderer DMA-BUF que funciona sobre X11 y Wayland.
 
-### webkit2gtk — build minimal
+### webkit2gtk — build inteligente
 
-Compilado con **máxima reducción de dependencias** (features desactivados):
+Las features opcionales se detectan automáticamente via `pkg-config`:
+si el paquete está instalado, la feature se habilita; si no, se desactiva.
+Esto permite activar funcionalidad sin editar el build script.
 
-| Feature desactivado | Flag CMake | Dependencia ahorrada |
-|---------------------|-----------|----------------------|
-| Video/Audio | `ENABLE_VIDEO=OFF`, `ENABLE_WEB_AUDIO=OFF` | gstreamer + plugins |
-| Subtítulos/DRM | `ENABLE_MEDIA_SOURCE=OFF`, `ENABLE_ENCRYPTED_MEDIA=OFF` | gstreamer |
-| WebRTC | `ENABLE_WEB_RTC=OFF` | gstreamer webrtc |
-| Spellcheck | `ENABLE_SPELLCHECK=OFF` | enchant2 |
-| Geolocalización | `ENABLE_GEOLOCATION=OFF` | geoclue |
-| Gamepad | `ENABLE_GAMEPAD=OFF` | libmanette |
-| Síntesis voz | `ENABLE_SPEECH_SYNTHESIS=OFF` | flite |
-| WebGL/WebGPU/WebXR | `ENABLE_WEBGL=OFF`, `ENABLE_WEBGPU=OFF`, `ENABLE_WEBXR=OFF` | ANGLE, OpenXR |
-| Notificaciones | `ENABLE_NOTIFICATIONS=OFF` | libnotify |
-| MiniBrowser | `ENABLE_MINIBROWSER=OFF` | — |
-| WebDriver | `ENABLE_WEBDRIVER=OFF` | — |
-| Sandbox | `ENABLE_BUBBLEWRAP_SANDBOX=OFF` | bubblewrap, libseccomp, xdg-dbus-proxy |
-| Imagen extra | `USE_AVIF=OFF`, `USE_JPEGXL=OFF`, `USE_LCMS=OFF`, `USE_WOFF2=OFF` | libavif, libjxl, lcms2, woff2 |
-| Keyring | `USE_LIBSECRET=OFF` | libsecret |
-| Hiphenación | `USE_LIBHYPHEN=OFF` | hyphen |
-| GObject Introspection | `ENABLE_INTROSPECTION=OFF` | gobject-introspection |
-| Documentación | `ENABLE_DOCUMENTATION=OFF` | gi-docgen |
+| Feature | Detecta vía pkg-config | Dependencia |
+|---------|----------------------|-------------|
+| Video/Audio | `gstreamer-1.0` | gstreamer + plugins |
+| WebRTC | `gst-webrtc-1.0` | gstreamer webrtc |
+| Spellcheck | `enchant2` | enchant2 |
+| Geolocalización | `geoclue-2.0` | geoclue |
+| Gamepad | `libmanette-0.2` | libmanette |
+| Síntesis voz | `flite` | flite |
+| WebGL | `glesv2` | mesa (gles) |
+| Sandbox | `bubblewrap` | bubblewrap, libseccomp, xdg-dbus-proxy |
+| Keyring | `libsecret-1` | libsecret |
+| AVIF | `libavif` | libavif |
+| JPEG XL | `libjxl` | libjxl |
+| CMS | `lcms2` | lcms2 |
+| WOFF2 | `libwoff2dec` | woff2 |
+| Hiphenación | `hyphen` | hyphen |
 
-**Toolchain:** LLVM/Clang con LTO thin, `-fuse-ld=lld`, debug symbols reducidos (`-g1`).
+**Siempre desactivados:** MiniBrowser, WebDriver, WebGPU, WebXR, Documentación,
+Introspection, Journald, Sampling Profiler (no afectan runtime).
 
-**Dependencias totales (runtime):** ~22 paquetes directos
+**Toolchain:** LLVM/Clang con LTO thin, `-fuse-ld=lld`, debug reducidos (`-g1`).
 
-### Orden de construcción
+### Orden de construcción (todo en sprint)
 
 ```bash
-# Dependencias nuevas de sprint (si no están en KISS_PATH)
+# Construir cadena de dependencias
+kiss b icu && kiss i icu
+kiss b libgpg-error && kiss i libgpg-error
+kiss b libgcrypt && kiss i libgcrypt
+kiss b libtasn1 && kiss i libtasn1
+kiss b libnghttp2 && kiss i libnghttp2
+kiss b libpsl && kiss i libpsl
+kiss b glib-networking && kiss i glib-networking
+kiss b libsoup3 && kiss i libsoup3
+kiss b libxslt && kiss i libxslt
+kiss b ruby && kiss i ruby
 kiss b unifdef && kiss i unifdef
+kiss b harfbuzz-icu && kiss i harfbuzz-icu
 
 # webkit2gtk (~18GB disco, <1 hora en Xeon E5-2640 v3)
 kiss b webkit2gtk && kiss i webkit2gtk
