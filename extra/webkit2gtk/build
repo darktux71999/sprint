@@ -78,5 +78,5 @@ cmake -B build -G Ninja \
     -DUSE_WOFF2="${woff2:-ON}" \
     -DLTO_MODE=thin
 
-cmake --build build -j12
+samu -C build -j12
 DESTDIR="$1" cmake --install build
