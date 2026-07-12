@@ -469,20 +469,150 @@ Push: `git push origin main` (SSH: `git@codeberg.org:darktux71999/sprint.git`)
 
 ---
 
-## Dotfiles
+## Sistema de inicio (sx + busybox init)
 
-Respaldo de configuraciones del sistema en `~/kiss-dotfiles/`:
-- `fstab` — mount points
-- `zram.boot` — zram init hook
-- `10-nvme.conf` — sysctl NVMe optimizations
-- `as-wrapper` — assembler wrapper for musl/LLVM
-- `pkgcd` — fuzzy cd to package dirs across repos
-- `pkgfind` — cross-reference packages across repos
-- `scr` — screenshot tool (ffmpeg)
-- `sprint-fetch` — system info display
-- `setwall` — wallpaper setter (xwallpaper)
-- `vis/` — vis editor config (noir theme, Hare lexer)
-- `sx/sxrc` — X session startup
+El sistema usa `busybox init` + `runsv` (runit-style).
+
+### Secuencia de arranque
+
+```
+/boot/limine.conf → kernel
+init → /etc/inittab
+  → ::sysinit:/lib/init/rc.boot    # rc.boot monta fs, devices, fstab, swap
+  → ::respawn:runsvdir -P /var/service  # servicios supervisados
+  → tty1::respawn:/bin/getty ...   # terminales
+```
+
+### /lib/init/rc.boot
+
+El script principal de arranque hace (en orden):
+1. Monta pseudo-fs (proc, sys, run, dev, pts, shm)
+2. Inicia gestor de dispositivos (mdev)
+3. Remount root como ro, fsck, rw
+4. `mount -a` (monta todo en /etc/fstab)
+5. `swapon -a` (swap activa)
+6. Hooks `.boot`: recorre `/etc/rc.d/*.boot`
+
+### Hooks de arranque (.boot)
+
+Se ejecutan en orden alfabético al final de rc.boot.
+
+| Hook | Descripción |
+|------|-------------|
+| `zram.boot` | Crea zram0 (4G lz4, prio=100) y zram1 (4G zstd, prio=99) vía `zramctl` |
+| `keymap.boot` | Carga teclado: `loadkmap < /usr/share/bkeymaps/dvorak/dvorak.bmap` |
+| `network.boot` | Configura IP estática en eth0 (192.168.1.12/24) + DNS Cloudflare |
+
+### xlible — forks de X.org
+
+El sistema usa **xlibre** en vez de xorg-server, por ser más activo en desarrollo.
+
+```
+xorg/xlibre-server/          # servidor X fork
+xorg/xlibre-xf86-input-libinput/  # input driver fork
+xorg/xwallpaper/             # wallpaper setter minimal
+```
+
+Dependencias: `libdrm`, `mesa`, `libepoxy`, `libxkbcommon`, `pixman`, `libxcvt`
+
+## LLM / AI local (~/models)
+
+### Ubicación de modelos
+
+Todos los `.gguf` se almacenan en `~/models/`. Pesan típicamente 500MB–2GB.
+
+### Script `chat` (~/bin/chat)
+
+Wrapper para interactuar con modelos via llama.cpp.
+
+| Uso | Descripción |
+|-----|-------------|
+| `chat` | Menú interactivo de modelos |
+| `chat vibe` | Filtra modelos que contengan "vibe" |
+| `chat -s` | Servidor API (OpenAI-compatible) |
+| `chat -s mini` | Servidor con modelo específico |
+
+Opciones internas optimizadas para Xeon E5-2640 v3 (8C/16T, 7.7G RAM):
+
+```
+-t 8            # hilos CPU
+-c 4096         # contexto
+-b 512          # batch size lógico
+-ub 256          # batch size físico
+-fa auto        # flash attention
+--mlock         # evitar swap del modelo
+--ctx-checkpoints 16  # checkpoints de contexto
+```
+
+### Servidor API
+
+```bash
+chat -s    # expone en http://localhost:8080/v1/chat/completions
+           # También accesible en red (0.0.0.0:8080)
+```
+
+Compatible con OpenAI. En Crush se configura:
+```
+provider: llama
+url: http://localhost:8080/v1
+key: none
+```
+
+### Paquetes relacionados
+
+```
+extra/llama.cpp/       # motor de inferencia (CPU)
+extra/libomp/          # OpenMP para aceleración paralela
+```
+
+## Docker / containers
+
+El sistema tiene `containerd`, `docker`, `runc`, `iptables`, `nftables` instalados pero NO son parte activa de la distro. Están disponibles si se necesitan, pero no hay builds en sprint (se instalaron desde binarios o paquetes de referencia).
+
+## Formato de patches/ y files/
+
+### patches/
+- Se referencian en `sources` como `patches/fix.patch`
+- KISS los copia **planos** al directorio de build (sin el prefijo `patches/`)
+- Aplicar con `patch -p1 < fix.patch` en el build script
+- Usar `|| true` si el parche es opcional
+
+### files/
+- Se referencian en `sources` como `files/script.sh destino/relativo`
+- El segundo campo indica el directorio destino dentro del build
+- Si no hay destino, se copian planos como los patches
+- Ejemplo en `yt-dlp/sources`:
+  ```
+  files/youtube-dl    # se copia a build/
+  ```
+
+Ejemplo de build que usa files:
+```sh
+# En build:
+cp youtube-dl "$1/usr/bin/youtube-dl"
+chmod +x "$1/usr/bin/youtube-dl"
+```
+
+## gitignore y checksums
+
+Los archivos `checksums` vacíos o inexistentes hacen que KISS salte verificación.
+Si existen y están desactualizados, el build falla al verificar.
+Regenerar con: `kiss checksum paquete`
+
+Los `checksums` NO están en `.gitignore` — se commitean con valores reales generados por `kiss checksum`.
+
+## Prioridad de dependencias (make vs runtime)
+
+En `depends`, una línea sin `make` es dependencia **runtime** (se instala automáticamente con el paquete). Con `make` al final, es solo **build-time** (solo para compilar).
+
+```sh
+# depends
+openssl              # runtime: openssl debe estar instalado
+cmake make           # build-only: solo necesario para compilar
+rust make            # build-only: para proyectos Rust
+```
+
+KISS resuelve dependencias recursivamente. Si A depende de B y B depende de C, KISS instala C → B → A en ese orden.
 - `picom/` — compositor config
 - `tridactyl/` — browser vi keybinds
 - `librewolf-theme/` — userChrome.css + user.js
