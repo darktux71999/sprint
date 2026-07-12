@@ -109,4 +109,4 @@ cmake -B build -G Ninja \
     -DUSE_WOFF2="${woff2:-ON}" \
     -DLTO_MODE=thin
 
-cmake --build build
+cmake --build build -j4

@@ -973,6 +973,7 @@ kiss b ruby && kiss i ruby
 kiss b unifdef && kiss i unifdef
 kiss b harfbuzz-icu && kiss i harfbuzz-icu
 
-# webkit2gtk (~18GB disco, <1 hora en Xeon E5-2640 v3)
+# webkit2gtk (~18GB disco, <1 hora en Xeon E5-2640 v3 con -j4)
+# Usar -j4 para evitar OOM (LTO thin consume mucha RAM por job)
 kiss b webkit2gtk && kiss i webkit2gtk
 ```
