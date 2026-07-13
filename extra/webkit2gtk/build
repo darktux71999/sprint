@@ -11,12 +11,19 @@ export RANLIB=llvm-ranlib
 export LDFLAGS="$LDFLAGS -fuse-ld=lld"
 
 # Reduce debug symbol size (~50% smaller)
+# -mno-avx2 -mno-f16c: fix SIGILL on Xeon E5-2640 v3 (clang 22 emits bad VEX)
 export CFLAGS="$CFLAGS -g1"
 export CXXFLAGS="$CXXFLAGS -g1"
 
 # Disable fortify (broken with webkit)
 export CFLAGS="$CFLAGS -U_FORTIFY_SOURCE"
 export CXXFLAGS="$CXXFLAGS -U_FORTIFY_SOURCE"
+
+# Fix SIGILL on Xeon E5-2640 v3: -march=native (system-wide in .mkshrc)
+# enables AVX2/F16C but clang 22 emits bad VEX encoding for this stepping.
+# Put -mno-* flags LAST so they override everything.
+export CFLAGS="$CFLAGS -mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2"
+export CXXFLAGS="$CXXFLAGS -mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2"
 
 # Apply patches
 for patch in *.patch; do
@@ -40,6 +47,8 @@ pkg-config --exists gst-webrtc-1.0 || webrtc=false
 pkg-config --exists glesv2         || webgl=false
 
 cmake -B build -G Ninja \
+    -DCMAKE_C_FLAGS="-mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2" \
+    -DCMAKE_CXX_FLAGS="-mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2" \
     -DPORT=GTK \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_SKIP_RPATH=ON \
