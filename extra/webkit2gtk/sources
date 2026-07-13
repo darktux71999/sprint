@@ -1,3 +1,6 @@
 https://webkitgtk.org/releases/webkitgtk-2.48.7.tar.xz
 patches/x11-include-order.patch
 patches/fix-clang22.patch
+patches/fortify.patch
+patches/skia-fortify.patch
+patches/silence.patch

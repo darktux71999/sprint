@@ -2,7 +2,7 @@
 
 export DESTDIR="$1"
 
-# Use clang/lld (sprint toolchain)
+# Toolchain: pure LLVM/Clang (sprint)
 export CC=clang
 export CXX=clang++
 export AR=llvm-ar
@@ -10,20 +10,13 @@ export NM=llvm-nm
 export RANLIB=llvm-ranlib
 export LDFLAGS="$LDFLAGS -fuse-ld=lld"
 
-# Reduce debug symbol size (~50% smaller)
-# -mno-avx2 -mno-f16c: fix SIGILL on Xeon E5-2640 v3 (clang 22 emits bad VEX)
-export CFLAGS="$CFLAGS -g1"
-export CXXFLAGS="$CXXFLAGS -g1"
+# Match cports: debug=1, NDEBUG, silence noisy warnings, fix libc++ hardening
+export CFLAGS="$CFLAGS -g1 -DNDEBUG"
+export CXXFLAGS="$CXXFLAGS -g1 -DNDEBUG -Wno-deprecated-declarations -Wno-deprecated-copy"
+export CXXFLAGS="$CXXFLAGS -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE"
 
-# Disable fortify (broken with webkit)
-export CFLAGS="$CFLAGS -U_FORTIFY_SOURCE"
-export CXXFLAGS="$CXXFLAGS -U_FORTIFY_SOURCE"
-
-# Fix SIGILL on Xeon E5-2640 v3: -march=native (system-wide in .mkshrc)
-# enables AVX2/F16C but clang 22 emits bad VEX encoding for this stepping.
-# Put -mno-* flags LAST so they override everything.
-export CFLAGS="$CFLAGS -mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2"
-export CXXFLAGS="$CXXFLAGS -mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2"
+# cports: CCACHE_SLOPPINESS for WebKitCCache.cmake
+export CCACHE_SLOPPINESS=time_macros,include_file_mtime
 
 # Apply patches
 for patch in *.patch; do
@@ -45,10 +38,17 @@ pkg-config --exists hyphen         || hyphen=false
 pkg-config --exists bubblewrap     || sandbox=false
 pkg-config --exists gst-webrtc-1.0 || webrtc=false
 pkg-config --exists glesv2         || webgl=false
+pkg-config --exists libopenjp2     || openjpeg=false
+pkg-config --exists libnotify      || notify=false
+
+# CPU-specific: Xeon E5-2640 v3 stepping workaround
+# -march=native enables AVX2/F16C but clang emits bad VEX encoding.
+# Remove these if building on other CPUs.
+XFLAGS="-mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2"
 
 cmake -B build -G Ninja \
-    -DCMAKE_C_FLAGS="-mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2" \
-    -DCMAKE_CXX_FLAGS="-mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2" \
+    -DCMAKE_C_FLAGS="$XFLAGS" \
+    -DCMAKE_CXX_FLAGS="$XFLAGS" \
     -DPORT=GTK \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_SKIP_RPATH=ON \
@@ -81,11 +81,13 @@ cmake -B build -G Ninja \
     -DUSE_JPEGXL="${jpegxl:-ON}" \
     -DUSE_LIBBACKTRACE=OFF \
     -DUSE_LIBHYPHEN="${hyphen:-ON}" \
+    -DUSE_LIBNOTIFY="${notify:-ON}" \
     -DUSE_LIBSECRET="${secret:-ON}" \
     -DUSE_LCMS="${lcms:-ON}" \
+    -DUSE_OPENJPEG="${openjpeg:-ON}" \
+    -DUSE_SOUP2=OFF \
     -DUSE_SYSPROF_CAPTURE=NO \
-    -DUSE_WOFF2="${woff2:-ON}" \
-    -DLTO_MODE=thin
+    -DUSE_WOFF2="${woff2:-ON}"
 
-samu -C build -j12
+samu -C build -j"${NPROC:-$(nproc)}"
 DESTDIR="$1" cmake --install build

@@ -1,22 +1,25 @@
 atk
+bison     make
+bubblewrap
 cairo
-cmake   make
-gperf   make
+cmake     make
+gperf     make
 gtk+3
 harfbuzz-icu
 icu
 libXt
 libgcrypt
+libseccomp
 libsoup3
 libtasn1
 libwebp
 libxml2
 libxslt
 mesa
-perl    make
-python  make
-ruby    make
-samurai make
+perl      make
+python    make
+ruby      make
+samurai   make
 sqlite
-unifdef make
-bison   make
+unifdef   make
+xdg-dbus-proxy
