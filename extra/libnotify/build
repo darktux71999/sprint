@@ -6,6 +6,7 @@ meson setup \
     -Dintrospection=disabled \
     -Ddocbook_docs=disabled \
     -Dgtk_doc=false \
+    -Dman=false \
     -Dtests=false \
     output
 

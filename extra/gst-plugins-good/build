@@ -13,7 +13,6 @@ meson setup \
     -Ddv1394=disabled \
     -Ddv=disabled \
     -Dflac=disabled \
-    -Dgudev=disabled \
     -Djack=disabled \
     -Dlibcaca=disabled \
     -Dmpg123=disabled \
