@@ -107,7 +107,7 @@ La búsqueda de paquetes sigue el orden de `KISS_PATH`:
 
 ```bash
 # Ejemplo: sprint tiene prioridad, luego repo/kiss-xorg/community como respaldo
-export KISS_PATH="/home/darktux/package-repos/sprint/core:/home/darktux/package-repos/sprint/extra:/home/darktux/package-repos/sprint/xorg:/home/darktux/package-repos/repo/core:/home/darktux/package-repos/repo/extra:/home/darktux/package-repos/repo/wayland:/home/darktux/package-repos/kiss-xorg/xorg:/home/darktux/package-repos/kiss-xorg/extra:/home/darktux/package-repos/kiss-xorg/community:/home/darktux/package-repos/community/community"
+export KISS_PATH="/home/darktux/package-repos/sprint/core:/home/darktux/package-repos/sprint/extra:/home/darktux/package-repos/sprint/xorg:/home/darktux/package-repos/repo/core:/home/darktux/package-repos/repo/extra:/home/darktux/package-repos/kiss-xorg/xorg:/home/darktux/package-repos/kiss-xorg/extra:/home/darktux/package-repos/kiss-xorg/community:/home/darktux/package-repos/community/community"
 ```
 
 ---
@@ -215,7 +215,7 @@ make DESTDIR="$1" install
 - `ash` es el shell default del sistema
 
 ### Versiones
-- **Versiones git**: usar timestamp o hash (ej: `9999` para HEAD)
+- **Versiones git**: usar `git` como versión (ej: `git` para HEAD)
 - **Versiones estándar**: `1.2.3 1`
 - **Release**: incrementar si el rebuild sin cambio de versión
 
@@ -330,7 +330,7 @@ cat ~/package-repos/sprint/extra/paquete/checksums
 kiss b paquete
 
 # Si falla, revisar log
-ls -t /root/.cache/kiss/logs/$(date +%Y-%m-%d)/paquete-* | head -1
+ls -t ~/.cache/kiss/logs/$(date +%Y-%m-%d)/paquete-* | head -1
 
 # Instalar
 kiss i paquete
@@ -505,7 +505,7 @@ Se ejecutan en orden alfabético al final de rc.boot.
 | `keymap.boot` | Carga teclado: `loadkmap < /usr/share/bkeymaps/dvorak/dvorak.bmap` |
 | `network.boot` | Configura IP estática en eth0 (192.168.1.12/24) + DNS Cloudflare |
 
-### xlible — forks de X.org
+### xlibre — forks de X.org
 
 El sistema usa **xlibre** en vez de xorg-server, por ser más activo en desarrollo.
 
@@ -517,59 +517,12 @@ xorg/xwallpaper/             # wallpaper setter minimal
 
 Dependencias: `libdrm`, `mesa`, `libepoxy`, `libxkbcommon`, `pixman`, `libxcvt`
 
-## LLM / AI local (~/models)
+### Repositorio
 
-### Ubicación de modelos
-
-Todos los `.gguf` se almacenan en `~/models/`. Pesan típicamente 500MB–2GB.
-
-### Script `chat` (~/bin/chat)
-
-Wrapper para interactuar con modelos via llama.cpp.
-
-| Uso | Descripción |
-|-----|-------------|
-| `chat` | Menú interactivo de modelos |
-| `chat vibe` | Filtra modelos que contengan "vibe" |
-| `chat -s` | Servidor API (OpenAI-compatible) |
-| `chat -s mini` | Servidor con modelo específico |
-
-Opciones internas optimizadas para Xeon E5-2640 v3 (8C/16T, 7.7G RAM):
-
-```
--t 8            # hilos CPU
--c 4096         # contexto
--b 512          # batch size lógico
--ub 256          # batch size físico
--fa auto        # flash attention
---mlock         # evitar swap del modelo
---ctx-checkpoints 16  # checkpoints de contexto
-```
-
-### Servidor API
-
-```bash
-chat -s    # expone en http://localhost:8080/v1/chat/completions
-           # También accesible en red (0.0.0.0:8080)
-```
-
-Compatible con OpenAI. En Crush se configura:
-```
-provider: llama
-url: http://localhost:8080/v1
-key: none
-```
-
-### Paquetes relacionados
-
-```
-extra/llama.cpp/       # motor de inferencia (CPU)
-extra/libomp/          # OpenMP para aceleración paralela
-```
-
-## Docker / containers
-
-El sistema tiene `containerd`, `docker`, `runc`, `iptables`, `nftables` instalados pero NO son parte activa de la distro. Están disponibles si se necesitan, pero no hay builds en sprint (se instalaron desde binarios o paquetes de referencia).
+- **Sprint** (principal): `~/package-repos/sprint/`
+- **cports** (Chimera ref): `~/package-repos/cports/main/`
+- **aports** (Alpine ref): `~/package-repos/aports/`
+- **gentoo** (Gentoo ref): `~/package-repos/gentoo/`
 
 ## Formato de patches/ y files/
 
@@ -615,11 +568,6 @@ rust make            # build-only: para proyectos Rust
 ```
 
 KISS resuelve dependencias recursivamente. Si A depende de B y B depende de C, KISS instala C → B → A en ese orden.
-- `picom/` — compositor config
-- `tridactyl/` — browser vi keybinds
-- `librewolf-theme/` — userChrome.css + user.js
-- `netsurf/` — browser config
-- `chat` — LLM chat wrapper
 
 ---
 
@@ -949,7 +897,7 @@ Esto permite activar funcionalidad sin editar el build script.
 | JPEG XL | `libjxl` | libjxl |
 | CMS | `lcms2` | lcms2 |
 | WOFF2 | `libwoff2dec` | woff2 |
-| Hiphenación | `hyphen` | hyphen |
+| Hifenación | `hyphen` | hyphen |
 
 **Siempre desactivados:** MiniBrowser, WebDriver, WebGPU, WebXR, Documentación,
 Introspection, Journald, Sampling Profiler (no afectan runtime).
