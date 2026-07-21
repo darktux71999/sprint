@@ -1,0 +1,10 @@
+gst-plugins-base
+gstreamer
+lame
+libpng
+libvpx
+libsoup3
+meson make
+opus
+orc
+samurai make

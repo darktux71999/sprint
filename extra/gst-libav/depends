@@ -1,0 +1,6 @@
+ffmpeg
+gstreamer
+gst-plugins-base
+meson make
+orc
+samurai make
