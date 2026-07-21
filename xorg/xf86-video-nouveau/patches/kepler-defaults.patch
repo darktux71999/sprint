@@ -1,0 +1,32 @@
+diff --git a/src/nv_driver.c b/src/nv_driver.c
+index c861d4b..02bc452 100644
+--- a/src/nv_driver.c
++++ b/src/nv_driver.c
+@@ -1072,14 +1072,21 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
+ 			pNv->tiled_scanout = TRUE;
+ 	}
+ 
+-	pNv->ce_enabled =
+-		xf86ReturnOptValBool(pNv->Options, OPTION_ASYNC_COPY, FALSE);
++	/* Enable Copy Engine by default for Kepler+ (well supported) */
++	if (pNv->Architecture >= NV_KEPLER)
++		pNv->ce_enabled =
++			xf86ReturnOptValBool(pNv->Options, OPTION_ASYNC_COPY, TRUE);
++	else
++		pNv->ce_enabled =
++			xf86ReturnOptValBool(pNv->Options, OPTION_ASYNC_COPY, FALSE);
+ 
+-	/* Define maximum allowed level of DRI implementation to use.
+-	 * We default to DRI2 on EXA for now, as DRI3 still has some
+-	 * problems.
++	/* Default to DRI3 for Kepler+ (better buffer sharing via DMA-BUF),
++	 * DRI2 for older chips.
+ 	 */
+-	pNv->max_dri_level = 2;
++	if (pNv->Architecture >= NV_KEPLER)
++		pNv->max_dri_level = 3;
++	else
++		pNv->max_dri_level = 2;
+ 	from = X_DEFAULT;
+ 
+ 	if (xf86GetOptValInteger(pNv->Options, OPTION_DRI,

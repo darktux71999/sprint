@@ -1,2 +1,5 @@
 git+https://github.com/X11Libre/xf86-video-nouveau
+patches/rootless_modesetting.patch
+patches/fix-null-ptr-enter-vt.patch
+patches/kepler-defaults.patch
 

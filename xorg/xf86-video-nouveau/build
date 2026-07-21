@@ -4,6 +4,12 @@ export DESTDIR="$1"
 
 export LDFLAGS="$LDFLAGS -Wl,-z,lazy"
 export CFLAGS="$CFLAGS -fcommon"
+
+# Apply patches
+for patch in *.patch *.diff; do
+    [ -f "$patch" ] && patch -p1 < "$patch"
+done
+
 ./autogen.sh
 ./configure \
     --prefix=/usr
