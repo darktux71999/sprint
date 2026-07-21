@@ -1,0 +1,5 @@
+gdk-pixbuf
+glib
+gtk+3
+meson make
+samurai make

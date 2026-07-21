@@ -1,0 +1,13 @@
+#!/bin/sh -e
+export DESTDIR="$1"
+
+meson setup \
+    -Dprefix=/usr \
+    -Dintrospection=disabled \
+    -Ddocbook_docs=disabled \
+    -Dgtk_doc=false \
+    -Dtests=false \
+    output
+
+samu -C output
+samu -C output install
