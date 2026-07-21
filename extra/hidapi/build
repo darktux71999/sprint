@@ -1,0 +1,15 @@
+#!/bin/sh -e
+export DESTDIR="$1"
+
+# Build hidapi with CMake (the meson build is a wrapper around CMake)
+cmake -B output \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_SHARED_LIBS=ON \
+  -DHIDAPI_WITH_HIDRAW=ON \
+  -DHIDAPI_WITH_LIBUSB=ON \
+  -DHIDAPI_BUILD_HIDTEST=OFF \
+  -DHIDAPI_WITH_TESTS=OFF
+
+cmake --build output
+DESTDIR="$1" cmake --install output
