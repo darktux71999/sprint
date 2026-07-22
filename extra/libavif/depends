@@ -1,0 +1,7 @@
+cmake make
+libdav1d
+libaom
+libjpeg-turbo
+libpng
+libwebp
+samurai make

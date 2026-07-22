@@ -1,0 +1,5 @@
+aspell
+automake make
+glib
+libtool make
+pkgconf make

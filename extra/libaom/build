@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+export CFLAGS="$CFLAGS -D_GNU_SOURCE -DNDEBUG"
+export CXXFLAGS="$CXXFLAGS -D_GNU_SOURCE -DNDEBUG"
+export LDFLAGS="$LDFLAGS -Wl,-z,stack-size=2097152"
+
+cmake -B build -G Ninja \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=ON \
+    -DENABLE_TESTS=OFF \
+    -DENABLE_NASM=ON
+
+ninja -C build
+ninja -C build install
