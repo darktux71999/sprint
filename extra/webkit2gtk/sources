@@ -1,4 +1,4 @@
-https://webkitgtk.org/releases/webkitgtk-2.48.7.tar.xz
+https://webkitgtk.org/releases/webkitgtk-2.52.5.tar.xz
 patches/x11-include-order.patch
 patches/fix-clang22.patch
 patches/fortify.patch
