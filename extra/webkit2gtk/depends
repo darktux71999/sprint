@@ -1,14 +1,25 @@
+aspell make
 atk
 bison     make
 bubblewrap
 cairo
 cmake     make
+enchant
 gperf     make
+gst-plugins-bad
+gst-plugins-good
 gtk+3
 harfbuzz-icu
+hyphen
 icu
 libXt
+libavif
 libgcrypt
+libjxl
+libnotify
+libpng
+libpsl
+libsecret
 libseccomp
 libsoup3
 libtasn1
@@ -16,10 +27,12 @@ libwebp
 libxml2
 libxslt
 mesa
+openjpeg
 perl      make
 python    make
 ruby      make
 samurai   make
 sqlite
 unifdef   make
+woff2
 xdg-dbus-proxy
