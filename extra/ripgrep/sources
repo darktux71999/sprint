@@ -1,4 +1,4 @@
-https://github.com/BurntSushi/ripgrep/archive/15.1.0.tar.gz
+https://github.com/BurntSushi/ripgrep/archive/15.2.0.tar.gz
 https://static.crates.io/crates/aho-corasick/aho-corasick-1.1.3.crate vendor
 https://static.crates.io/crates/anyhow/anyhow-1.0.100.crate vendor
 https://static.crates.io/crates/arbitrary/arbitrary-1.4.2.crate vendor
