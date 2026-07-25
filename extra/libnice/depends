@@ -1,0 +1,7 @@
+glib
+gst-plugins-base
+gstreamer
+meson make
+openssl
+pkgconf make
+samurai make

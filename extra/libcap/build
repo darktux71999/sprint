@@ -1,0 +1,19 @@
+#!/bin/sh -e
+
+patch -p1 < no-bash.patch
+
+mk() {
+    make \
+        CC="$CC" \
+        GOLANG=no \
+        PREFIX=/usr \
+        SBINDIR=/usr/bin \
+        LIBDIR=/usr/lib \
+        PKGCONFIGDIR=/usr/lib/pkgconfig \
+        RAISE_SETFCAP=no \
+        INDENT=" " \
+        "$@"
+}
+
+mk
+mk DESTDIR="$1" install
