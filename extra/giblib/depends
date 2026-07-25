@@ -1,0 +1,5 @@
+autoconf make
+automake make
+imlib2
+libXext
+libtool make
