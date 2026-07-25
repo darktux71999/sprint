@@ -1,0 +1,5 @@
+cmake make
+libdrm
+libxcb
+vulkan-headers make
+xorgproto make
