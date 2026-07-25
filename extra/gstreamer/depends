@@ -1,0 +1,5 @@
+bison make
+glib
+libcap
+meson make
+samurai make

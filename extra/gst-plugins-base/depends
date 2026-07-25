@@ -1,0 +1,21 @@
+alsa-lib
+cairo
+glib
+gstreamer
+libX11
+libXext
+libXi
+libdrm
+libjpeg-turbo
+libogg
+libpng
+libvorbis
+libxcb
+linux-headers make
+mesa
+meson make
+opus
+orc
+pango
+samurai make
+zlib
