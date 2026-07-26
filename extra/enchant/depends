@@ -3,4 +3,3 @@ automake make
 glib
 libtool make
 pkgconf make
-groff make

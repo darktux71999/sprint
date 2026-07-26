@@ -3,7 +3,8 @@
 ./configure \
     --prefix=/usr \
     --enable-relocatable \
-    --disable-static
+    --disable-static \
+    --disable-docs
 
 make
 make DESTDIR="$1" install
