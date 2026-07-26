@@ -1,12 +1,16 @@
 #!/bin/sh -e
 
+export DESTDIR="$1"
+
+# Remove enchant.html doc generation (requires groff, not available)
+sed -i '/nodist_doc_DATA.*enchant.html/d' lib/Makefile.am
+sed -i '/^enchant\.html/,/^$/d' lib/Makefile.am
+sed -i 's| $(nodist_doc_DATA)||' lib/Makefile.am
+
 ./configure \
     --prefix=/usr \
     --enable-relocatable \
     --disable-static
-
-# Skip enchant.html doc generation (requires groff, not available)
-sed -i '/enchant\.html.*groff/d' Makefile
 
 make
 make DESTDIR="$1" install
