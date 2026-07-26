@@ -1,6 +1,0 @@
-libinput
-linux-headers make
-meson make
-pkgconf       make
-samurai make
-xlibre-server

@@ -1,8 +1,0 @@
-https://static.rust-lang.org/dist/rustc-1.96.0-src.tar.xz
-# Bootstrap tarballs - update these for the correct Rust release date
-# Check https://static.rust-lang.org/dist/index.html for available files
-https://static.rust-lang.org/dist/2026-03-05/rust-std-1.94.0-x86_64-unknown-linux-musl.tar.xz?no-extract
-https://static.rust-lang.org/dist/2026-03-05/rustc-1.94.0-x86_64-unknown-linux-musl.tar.xz?no-extract
-https://static.rust-lang.org/dist/2026-03-05/cargo-1.94.0-x86_64-unknown-linux-musl.tar.xz?no-extract
-patches/fix-curl.patch
-patches/fix-linux_musl_base.patch

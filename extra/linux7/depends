@@ -1,7 +1,0 @@
-bc            make
-bison         make
-elfutils
-flex          make
-openssl
-python        make
-zlib

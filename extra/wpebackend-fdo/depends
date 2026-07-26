@@ -1,7 +1,0 @@
-glib
-libepoxy
-libwpe
-wayland
-wayland-protocols
-meson   make
-pkgconf make

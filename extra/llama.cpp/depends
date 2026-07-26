@@ -1,6 +1,0 @@
-cmake make
-libomp
-libomp        make
-openssl
-samurai make
-linux-headers make

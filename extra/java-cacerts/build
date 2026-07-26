@@ -1,7 +1,0 @@
-#!/bin/sh -e
-
-# Minimal Java cacerts directory
-# Populate /etc/ssl/certs/java/cacerts with your CA certificates
-# or symlink to your system trust store.
-
-mkdir -p "$1/etc/ssl/certs/java"
