@@ -16,28 +16,8 @@ meson setup \
     -Dglib_assert=false \
     -Dglib_checks=false \
     -Dglib_debug=disabled \
-    -Dhls-crypto=openssl \
     -Dwayland=disabled \
-    -Dgst-transcoder=disabled \
     -Dintrospection=disabled \
-    -Dcodecparsers=enabled \
-    -Dplayback=enabled \
-    -Dtypefind=enabled \
-    -Dcodecs=enabled \
-    -Dwebrtc=enabled \
-    -Dwebrtcdsp=enabled \
-    -Dhls=enabled \
-    -Dsdpelem=enabled \
-    -Drtpmanager=enabled \
-    -Daudioconvert=enabled \
-    -Daudiofx=enabled \
-    -Daudioparsers=enabled \
-    -Dcompositor=enabled \
-    -Dvideoparsers=enabled \
-    -Dy4m=enabled \
-    -Dashdemux=enabled \
-    -Dmp4=enabled \
-    -Dmpegtsdemux=enabled \
     output
 
 ninja -C output
