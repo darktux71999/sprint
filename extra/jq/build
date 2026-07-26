@@ -1,9 +1,11 @@
 #!/bin/sh -e
 
+export CFLAGS="${CFLAGS/-flto=thin/}"
+
 ./configure \
     --prefix=/usr \
     --disable-maintainer-mode \
-    --with-onigurama=builtin
+    --with-oniguruma=builtin
 
 make
 make DESTDIR="$1" install
