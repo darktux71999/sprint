@@ -1,6 +1,7 @@
 --- a/meson.build
 +++ b/meson.build
-@@ -478,11 +478,7 @@ if gperf.found() and get_option('wrap_mode') != 'forcefallback'
+@@ -479,8 +479,6 @@
+     error('unable to determine gperf len type')
    endif
  else
 -  # Fallback to subproject
@@ -8,21 +9,20 @@
    # assume if we are compiling from the wrap, the size is just size_t
    gperf_len_type = 'size_t'
  endif
- 
- message('gperf len type is @0@'.format(gperf_len_type))
 --- a/src/meson.build
 +++ b/src/meson.build
-@@ -51,16 +51,10 @@ fcobjshash_gperf = custom_target(
+@@ -58,14 +58,7 @@
+   command: ['cutout.py', '@INPUT@', '@OUTPUT@'],
    build_by_default: true,
  )
- 
+-
 -fcobjshash_h = custom_target(
 -  'fcobjshash.h',
 -  input: fcobjshash_gperf,
 -  output: 'fcobjshash.h',
 -  command: [gperf, '--pic', '-m', '100', '@INPUT@', '--output-file', '@OUTPUT@'],
 -)
+-
 +fcobjshash_h = 'fcobjshash.h'
- 
  lib_fontconfig_sources = [
    fc_sources,
