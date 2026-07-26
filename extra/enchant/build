@@ -3,8 +3,10 @@
 ./configure \
     --prefix=/usr \
     --enable-relocatable \
-    --disable-static \
-    --disable-docs
+    --disable-static
+
+# Skip enchant.html doc generation (requires groff, not available)
+sed -i '/enchant\.html.*groff/d' Makefile
 
 make
 make DESTDIR="$1" install
