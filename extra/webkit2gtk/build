@@ -10,8 +10,6 @@ export NM=llvm-nm
 export RANLIB=llvm-ranlib
 export LDFLAGS="$LDFLAGS -fuse-ld=lld"
 
-# Match cports: debug=1, NDEBUG, silence noisy warnings, fix libc++ hardening
-export CFLAGS="$CFLAGS -g1 -DNDEBUG"
 
 # cports: CCACHE_SLOPPINESS for WebKitCCache.cmake
 export CCACHE_SLOPPINESS=time_macros,include_file_mtime
@@ -61,8 +59,8 @@ cmake -B build -G Ninja \
     -DENABLE_SAMPLING_PROFILER=OFF \
     -DENABLE_SPELLCHECK="${spellcheck:-ON}" \
     -DENABLE_SPEECH_SYNTHESIS="${speech:-ON}" \
-    -DENABLE_VIDEO="${video:-ON}" \
-    -DENABLE_WEB_AUDIO="${video:-ON}" \
+    -DENABLE_VIDEO=ON \
+    -DENABLE_WEB_AUDIO=ON \
     -DENABLE_MEDIA_SOURCE="${video:-ON}" \
     -DENABLE_MEDIA_STREAM="${video:-ON}" \
     -DENABLE_MEDIA_RECORDER="${video:-ON}" \
@@ -70,7 +68,7 @@ cmake -B build -G Ninja \
     -DENABLE_WEB_RTC="${webrtc:-ON}" \
     -DENABLE_WEB_CODECS="${video:-ON}" \
     -DENABLE_WEBDRIVER=OFF \
-    -DENABLE_WEBGL="${webgl:-ON}" \
+    -DENABLE_WEBGL=ON \
     -DENABLE_WEBGPU=OFF \
     -DENABLE_WEBXR=OFF \
     -DENABLE_WAYLAND_TARGET=OFF \
@@ -88,5 +86,5 @@ cmake -B build -G Ninja \
     -DUSE_SYSPROF_CAPTURE=NO \
     -DUSE_WOFF2="${woff2:-ON}"
 
-samu -C build -j"${NPROC:-$(nproc)}"
+samu -C build -j10
 DESTDIR="$1" cmake --install build
