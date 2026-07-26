@@ -18,7 +18,6 @@ meson setup \
     -Dglib_debug=disabled \
     -Dhls-crypto=openssl \
     -Dwayland=disabled \
-    -Dgst-play=disabled \
     -Dgst-transcoder=disabled \
     -Dintrospection=disabled \
     -Dcodecparsers=enabled \
