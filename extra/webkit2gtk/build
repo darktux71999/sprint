@@ -12,8 +12,6 @@ export LDFLAGS="$LDFLAGS -fuse-ld=lld"
 
 # Match cports: debug=1, NDEBUG, silence noisy warnings, fix libc++ hardening
 export CFLAGS="$CFLAGS -g1 -DNDEBUG"
-export CXXFLAGS="$CXXFLAGS -g1 -DNDEBUG -Wno-deprecated-declarations -Wno-deprecated-copy"
-export CXXFLAGS="$CXXFLAGS -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE"
 
 # cports: CCACHE_SLOPPINESS for WebKitCCache.cmake
 export CCACHE_SLOPPINESS=time_macros,include_file_mtime
@@ -44,11 +42,8 @@ pkg-config --exists libnotify      || notify=false
 # CPU-specific: Xeon E5-2640 v3 stepping workaround
 # -march=native enables AVX2/F16C but clang emits bad VEX encoding.
 # Remove these if building on other CPUs.
-XFLAGS="-mno-avx2 -mno-f16c -mno-fma -mno-bmi -mno-bmi2"
 
 cmake -B build -G Ninja \
-    -DCMAKE_C_FLAGS="$XFLAGS" \
-    -DCMAKE_CXX_FLAGS="$XFLAGS" \
     -DPORT=GTK \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_SKIP_RPATH=ON \
