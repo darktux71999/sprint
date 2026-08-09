@@ -1,5 +1,4 @@
 bison        make
-bindgen-cli  make
 expat
 flex         make
 libX11
