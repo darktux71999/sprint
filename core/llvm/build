@@ -1,87 +1,149 @@
 #!/bin/sh -e
 
-# En KISS, si los parches están en 'sources', se copian al directorio actual.
-# Se asume que estás en la raíz donde se descomprimió o donde están los parches.
+# ============================================================================
+# LLVM 22.1.8 build script for KISS Linux (musl x86_64)
+#
+# Pipeline: PGO + ThinLTO + BOLT via upstream CMake caches.
+#   clang/cmake/caches/BOLT-PGO.cmake → PGO.cmake + BOLT.cmake
+#
+# Etapas (multi-stage bootstrap via ninja):
+#   stage1              → host compiler (Release)
+#   stage2-instrumented → instrumented compiler (IR-based PGO)
+#   (generates profdata by compiling hello world, configurable)
+#   stage2 (final)      → PGO + ThinLTO + BOLT optimized compiler
+# ============================================================================
 
 export DESTDIR="$1"
 
+# 1. Apply patches
 for patch in *.patch; do
+    [ -f "$patch" ] || continue
     patch -p1 < "$patch"
 done
 
-
-# 2. Preparar entorno
-# Krak3n usa el monorepo (llvm-project), así que entramos en la carpeta llvm.
-# Nota: Ajusta el nombre del directorio si el tarball lo extrae diferente.
-
-# Definimos el Triple para asegurar que LLVM sepa que es nativo musl
+# 2. Variables
+JOBS="$(nproc)"
 HOST_TRIPLE="x86_64-pc-linux-musl"
+SRC="llvm"
+BUILD="build"
 
-# 3. Configuración (Adaptada de Krak3n para KISS)
-mkdir -p build
-cd build
-
-echo "Directorio actual: $(pwd)"
-echo "Buscando CMakeLists.txt en ../llvm..."
-ls -l ../llvm/CMakeLists.txt || echo "¡ALERTA! No se encuentra CMakeLists.txt en ../llvm"
-
-cmake -S ../llvm \
-    -DCMAKE_INSTALL_PREFIX=/usr \
-    -DCMAKE_INSTALL_LIBDIR=lib \
-    -DCMAKE_BUILD_TYPE=Release \
+# 3. Configure multi-stage build with BOLT-PGO + ThinLTO
+cmake -S "$SRC" -B "$BUILD" -G Ninja \
+    -C clang/cmake/caches/BOLT-PGO.cmake \
+    -DPGO_INSTRUMENT_LTO=Thin \
+    -DBOOTSTRAP_LLVM_ENABLE_LLD=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_LLD=ON \
+    -DLLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
+    -DBOOTSTRAP_LLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_INSTALL_TOOLCHAIN_ONLY=OFF \
     -DLLVM_HOST_TRIPLE="$HOST_TRIPLE" \
     -DLLVM_DEFAULT_TARGET_TRIPLE="$HOST_TRIPLE" \
-    -DLLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
-    -DLLVM_BUILD_LLVM_DYLIB=ON \
-    -DLLVM_LINK_LLVM_DYLIB=ON \
+    -DBOOTSTRAP_LLVM_HOST_TRIPLE="$HOST_TRIPLE" \
+    -DBOOTSTRAP_LLVM_DEFAULT_TARGET_TRIPLE="$HOST_TRIPLE" \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_HOST_TRIPLE="$HOST_TRIPLE" \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_DEFAULT_TARGET_TRIPLE="$HOST_TRIPLE" \
     -DLLVM_ENABLE_RTTI=ON \
     -DLLVM_ENABLE_EH=ON \
-    -DLLVM_ENABLE_LLD=ON \
-    -DLLVM_INSTALL_BINUTILS_SYMLINKS=ON \
-    -DLLVM_ENABLE_PROJECTS="clang;lld" \
-    -DLLVM_ENABLE_RUNTIMES="compiler-rt;libunwind;libcxx;libcxxabi" \
+    -DBOOTSTRAP_LLVM_ENABLE_RTTI=ON \
+    -DBOOTSTRAP_LLVM_ENABLE_EH=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_RTTI=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_EH=ON \
+    -DLLVM_ENABLE_LIBXML2=OFF \
     -DLLVM_INCLUDE_BENCHMARKS=OFF \
     -DLLVM_INCLUDE_EXAMPLES=OFF \
     -DLLVM_INCLUDE_DOCS=OFF \
     -DLLVM_INCLUDE_TESTS=OFF \
-    -DLLVM_ENABLE_LIBXML2=OFF \
-    -DCLANG_DEFAULT_RTLIB=compiler-rt \
-    -DCLANG_DEFAULT_UNWINDLIB=libunwind \
-    -DCLANG_DEFAULT_CXX_STDLIB=libc++ \
-    -DCLANG_DEFAULT_LINKER=lld \
-    -DCLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
-    -DLIBCLANG_BUILD_STATIC=ON \
+    -DBOOTSTRAP_LLVM_ENABLE_LIBXML2=OFF \
+    -DBOOTSTRAP_LLVM_INCLUDE_BENCHMARKS=OFF \
+    -DBOOTSTRAP_LLVM_INCLUDE_EXAMPLES=OFF \
+    -DBOOTSTRAP_LLVM_INCLUDE_DOCS=OFF \
+    -DBOOTSTRAP_LLVM_INCLUDE_TESTS=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_LIBXML2=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_BENCHMARKS=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_EXAMPLES=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_DOCS=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_TESTS=OFF \
+    -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
+    -DCOMPILER_RT_BUILD_XRAY=OFF \
+    -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
+    -DCOMPILER_RT_BUILD_GWP_ASAN=OFF \
+    -DBOOTSTRAP_COMPILER_RT_BUILD_SANITIZERS=OFF \
+    -DBOOTSTRAP_COMPILER_RT_BUILD_XRAY=OFF \
+    -DBOOTSTRAP_COMPILER_RT_BUILD_LIBFUZZER=OFF \
+    -DBOOTSTRAP_COMPILER_RT_BUILD_GWP_ASAN=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_COMPILER_RT_BUILD_SANITIZERS=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_COMPILER_RT_BUILD_XRAY=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_COMPILER_RT_BUILD_LIBFUZZER=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_COMPILER_RT_BUILD_GWP_ASAN=OFF \
+    -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON \
     -DLIBCXX_HAS_MUSL_LIBC=ON \
     -DLIBCXX_USE_COMPILER_RT=ON \
     -DLIBCXX_CXX_ABI=libcxxabi \
     -DLIBCXXABI_USE_LLVM_UNWINDER=ON \
     -DLIBCXXABI_USE_COMPILER_RT=ON \
     -DLIBUNWIND_USE_COMPILER_RT=ON \
-    -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON \
-    -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
-    -DCOMPILER_RT_BUILD_XRAY=OFF \
-    -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
-    -DCOMPILER_RT_BUILD_PROFILE=OFF \
+    -DBOOTSTRAP_COMPILER_RT_USE_BUILTINS_LIBRARY=ON \
+    -DBOOTSTRAP_LIBCXX_HAS_MUSL_LIBC=ON \
+    -DBOOTSTRAP_LIBCXX_USE_COMPILER_RT=ON \
+    -DBOOTSTRAP_LIBCXX_CXX_ABI=libcxxabi \
+    -DBOOTSTRAP_LIBCXXABI_USE_LLVM_UNWINDER=ON \
+    -DBOOTSTRAP_LIBCXXABI_USE_COMPILER_RT=ON \
+    -DBOOTSTRAP_LIBUNWIND_USE_COMPILER_RT=ON \
+    -DBOOTSTRAP_BOOTSTRAP_COMPILER_RT_USE_BUILTINS_LIBRARY=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LIBCXX_HAS_MUSL_LIBC=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LIBCXX_USE_COMPILER_RT=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LIBCXX_CXX_ABI=libcxxabi \
+    -DBOOTSTRAP_BOOTSTRAP_LIBCXXABI_USE_LLVM_UNWINDER=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LIBCXXABI_USE_COMPILER_RT=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LIBUNWIND_USE_COMPILER_RT=ON \
+    -DCLANG_DEFAULT_RTLIB=compiler-rt \
+    -DCLANG_DEFAULT_UNWINDLIB=libunwind \
+    -DCLANG_DEFAULT_CXX_STDLIB=libc++ \
+    -DCLANG_DEFAULT_LINKER=lld \
+    -DCLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
+    -DLIBCLANG_BUILD_STATIC=ON \
+    -DLLVM_INSTALL_BINUTILS_SYMLINKS=ON \
+    -DBOOTSTRAP_CLANG_DEFAULT_RTLIB=compiler-rt \
+    -DBOOTSTRAP_CLANG_DEFAULT_UNWINDLIB=libunwind \
+    -DBOOTSTRAP_CLANG_DEFAULT_CXX_STDLIB=libc++ \
+    -DBOOTSTRAP_CLANG_DEFAULT_LINKER=lld \
+    -DBOOTSTRAP_CLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
+    -DBOOTSTRAP_LIBCLANG_BUILD_STATIC=ON \
+    -DBOOTSTRAP_LLVM_INSTALL_BINUTILS_SYMLINKS=ON \
+    -DBOOTSTRAP_BOOTSTRAP_CLANG_DEFAULT_RTLIB=compiler-rt \
+    -DBOOTSTRAP_BOOTSTRAP_CLANG_DEFAULT_UNWINDLIB=libunwind \
+    -DBOOTSTRAP_BOOTSTRAP_CLANG_DEFAULT_CXX_STDLIB=libc++ \
+    -DBOOTSTRAP_BOOTSTRAP_CLANG_DEFAULT_LINKER=lld \
+    -DBOOTSTRAP_BOOTSTRAP_CLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
+    -DBOOTSTRAP_BOOTSTRAP_LIBCLANG_BUILD_STATIC=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_INSTALL_BINUTILS_SYMLINKS=ON \
     -Wno-dev
 
-# NOTA SOBRE SANITIZERS: Krak3n los tiene en ON, pero en un bootstrap inicial 
-# con musl puro suelen fallar por falta de rpc/xdr.h. 
-# Los he puesto en OFF para asegurar el éxito del build.
+# 4. Build: stage1 → stage2-instrumented → profdata → stage2 → BOLT
+echo "=== BOLT-PGO Multi-Stage Build ==="
+echo "Builds LLVM 3 times (stage1, instrumented, final PGO) + BOLT."
+echo "This can take several hours."
+echo ""
 
-# 4. Compilar e Instalar
-cmake --build .
-cmake --install .
+ninja -j"$JOBS" stage2-clang-bolt
 
-# 5. Post-instalación: Enlaces simbólicos (Reemplazo de GCC/Binutils)
+# 5. Install from stage2 (PGO + ThinLTO + BOLT) to DESTDIR
+echo "=== Installing stage2 (PGO+ThinLTO+BOLT) ==="
+DESTDIR="$1" cmake --build "$BUILD/tools/clang/stage2-instrumented-bins" --target stage2-install
+
+# 6. Post-install: GCC/Binutils symlinks
 cd "$1/usr/bin"
 
-# Enlaces para que el sistema crea que tiene GCC/Binutils
-ln -sf lld ld
-ln -sf clang cc
-ln -sf clang gcc
-ln -sf clang cpp
-ln -sf clang++ c++
-ln -sf clang++ g++
+ln -sf lld         ld
+ln -sf clang       cc
+ln -sf clang       gcc
+ln -sf clang       cpp
+ln -sf clang++     c++
+ln -sf clang++     g++
 
-# Scripts c89/c99 (Opcional, si los tienes en sources instalalos, si no, o
-
+# Optional c89/c99 scripts from sources/files
+if [ -f "$OLDPWD/files/c89" ]; then
+    install -m755 "$OLDPWD/files/c89" .
+    install -m755 "$OLDPWD/files/c99" .
+fi
