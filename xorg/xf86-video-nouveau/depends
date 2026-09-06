@@ -2,3 +2,9 @@ libdrm
 linux-headers make
 pkgconf       make
 xorgproto
+autoconf make
+automake make
+libtool make
+libpciaccess
+xlibre-server make
+xorg-util-macros make

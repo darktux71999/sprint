@@ -1,7 +1,6 @@
 #!/bin/sh -e
 
 export DESTDIR="$1"
-patch -p1 < fix-arc4random-getrandom.patch
 
 # Disable tests.
 : > test/meson.build

@@ -1,5 +1,0 @@
-glib
-libgcrypt
-meson make
-pkgconf make
-samurai make

@@ -7,10 +7,11 @@ export CFLAGS="$CFLAGS -fcommon"
 
 # Apply patches
 for patch in *.patch *.diff; do
-    [ -f "$patch" ] && patch -p1 < "$patch"
+    [ -f "$patch" ] || continue
+    patch -p1 < "$patch"
 done
 
-./autogen.sh
+NOCONFIGURE=1 ./autogen.sh
 ./configure \
     --prefix=/usr
 

@@ -1,6 +1,5 @@
 /var/db/kiss/installed/go-bootstrap/version
 /var/db/kiss/installed/go-bootstrap/sources
-/var/db/kiss/installed/go-bootstrap/patches/posix-build-gcc-15.patch
 /var/db/kiss/installed/go-bootstrap/patches/
 /var/db/kiss/installed/go-bootstrap/manifest
 /var/db/kiss/installed/go-bootstrap/checksums

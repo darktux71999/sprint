@@ -1,0 +1,14 @@
+work around the X11 Success macro colliding with the NSS result constant
+
+--- a/security/nss/lib/mozpkix/include/pkix/Result.h
++++ b/security/nss/lib/mozpkix/include/pkix/Result.h
+@@ -27,6 +27,10 @@
+
+ #include <cassert>
+
++#ifdef Success
++#undef Success
++#endif
++
+ namespace mozilla {
+ namespace pkix {

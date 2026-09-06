@@ -1,5 +1,10 @@
 #!/bin/sh -e
 
+# Keep personal Python packages out of Mach's build environment.
+export PYTHONNOUSERSITE=1
+export HOME="$PWD/state/home"
+mkdir -p "$HOME"
+
 for p in *.patch; do
     patch -p1 < "$p"
 done
@@ -39,6 +44,8 @@ ac_add_options --enable-audio-backends=alsa
 ac_add_options --enable-install-strip
 ac_add_options --enable-official-branding
 ac_add_options --enable-application=browser
+# Build the GTK frontend with X11 only; do not autodetect or enable Wayland.
+ac_add_options --enable-default-toolkit=cairo-gtk3-x11-only
 ac_add_options --enable-optimize
 ac_add_options --with-system-ffi
 ac_add_options --with-system-jpeg

@@ -1,0 +1,36 @@
+xf86-video-nouveau — revisión 2026-09-05
+
+Causa del fallo
+--------------
+fix-null-ptr-enter-vt.patch intentaba sustituir NVEnterVT(NULL) y
+NVLeaveVT(NULL). La fuente X11Libre ya llama ambas funciones con pScrn;
+por eso patch fallaba antes de iniciar la compilación.
+
+Corrección
+----------
+Se retiró ese parche de sources y del directorio patches. Se conservan
+rootless_modesetting.patch y kepler-defaults.patch, aplicados correctamente.
+La fuente Git queda fijada a b18a89c78877f145d92c219cc987ce5aa8cd451d.
+La versión 25.0.0 corresponde a AC_INIT de esa revisión; la etiqueta anterior
+1.0.18 no describía la fuente que descargaba la receta.
+Se declaran las dependencias de Autotools, macros X.Org, libpciaccess y
+cabeceras de XLibre. NOCONFIGURE=1 evita configurar dos veces con autogen.sh.
+El bucle de parches ignora patrones sin archivos sin devolver un fallo.
+
+Validación
+----------
+kiss c regeneró los dos checksums de los parches.
+kiss b completó compilación, enlace y empaquetado con el entorno de ~/.mkshrc.
+Servidor de desarrollo detectado: xorg-server 25.2.0; libdrm 2.4.134.
+Paquete: ~/.cache/kiss/bin/xf86-video-nouveau@25.0.0-1.tar.lz4
+Registro: ~/.cache/nouveau-review-20260905/build.log
+No se probó el comportamiento gráfico del controlador en una nueva sesión.
+
+Incidencia durante la validación
+-------------------------------
+KISS continuó automáticamente desde su confirmación de instalación al final
+de kiss b y dejó instalado 25.0.0-1. No se reinició la sesión gráfica.
+Para construir sin entrar en esa confirmación, esta versión local de KISS
+admite build_install=0:
+
+    mksh -c '. ~/.mkshrc; build_install=0 kiss b xf86-video-nouveau'

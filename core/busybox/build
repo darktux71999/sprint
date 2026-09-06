@@ -11,6 +11,7 @@ mv -f _ Makefile
 
 # Build and install regular busybox.
 # This excludes utilities which require 'suid' to function.
+yes '' | make HOSTCC="$CC" oldconfig
 make HOSTCC="$CC"
 make CONFIG_PREFIX="$1/usr" install
 
@@ -20,6 +21,7 @@ mv "$1/usr/bin/busybox" "$1/usr/bin/busybox-nosuid"
 # Build and install suid busybox.
 # This _only_ includes utlities which require 'suid' to function.
 cp -f .config-suid .config
+yes '' | make HOSTCC="$CC" oldconfig
 make HOSTCC="$CC"
 make CONFIG_PREFIX="$1/usr" install
 
@@ -34,7 +36,9 @@ done
 
 # Install the suid symlinks.
 "$1/usr/bin/busybox-suid" --list | while read -r bin; do
-    ln -s busybox-suid "$1/usr/bin/$bin"
+    # Keep the non-suid link when a newly introduced default applet is also
+    # present in the legacy suid configuration.
+    [ -e "$1/usr/bin/$bin" ] || ln -s busybox-suid "$1/usr/bin/$bin"
 done
 
 # Set suid on busybox suid.

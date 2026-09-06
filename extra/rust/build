@@ -9,15 +9,13 @@ done
 # Instruct the compiler to trim absolute paths
 export RUSTFLAGS="$RUSTFLAGS --remap-path-prefix=$PWD=."
 
-sed 's/"files":{[^}]*}/"files":{}/' \
-    vendor/curl-sys-0.4.79+curl-8.12.0/.cargo-checksum.json > _
-mv -f _ vendor/curl-sys-0.4.79+curl-8.12.0/.cargo-checksum.json
+# Clear checksums for each curl-sys crate modified by fix-curl.patch.
+for crate in vendor/curl-sys-*; do
+    sed 's/"files":{[^}]*}/"files":{}/' "$crate/.cargo-checksum.json" > _
+    mv -f _ "$crate/.cargo-checksum.json"
+done
 
-sed 's/"files":{[^}]*}/"files":{}/' \
-    vendor/curl-sys-0.4.84+curl-8.17.0/.cargo-checksum.json > _
-mv -f _ vendor/curl-sys-0.4.84+curl-8.17.0/.cargo-checksum.json
-
-cat > config.toml <<EOF
+cat > bootstrap.toml <<EOF
 [llvm]
 link-shared = true
 download-ci-llvm = false
@@ -62,14 +60,15 @@ debug             = false
 debug-assertions  = false
 debuginfo-level   = 0
 lto = "off"
-use-lld = true
+bootstrap-override-lld = "external"
+download-rustc = false
 incremental       = false
 jemalloc          = false
 rpath             = false
 dist-src          = false
 EOF
 
-mkdir -p "${cache_dir:=build/cache/2026-03-05}"
+mkdir -p "${cache_dir:=build/cache/2026-07-16}"
 
 for tarball in *.tar.xz?no-extract; do
     mv -f "$tarball" "$cache_dir/${tarball%%?no-extract}"
@@ -77,7 +76,7 @@ done
 
 libunwind_path=$("$CC" -print-file-name=libunwind.so)
 case $libunwind_path in */*)
-    printf 'llvm-libunwind = "system"\n' >> config.toml
+    printf 'llvm-libunwind = "system"\n' >> bootstrap.toml
     mkdir -p libgcc
     printf 'INPUT(-lunwind)\n' > libgcc/libgcc_s.so
     ln -sf "$libunwind_path" libgcc/libgcc_s.so.1

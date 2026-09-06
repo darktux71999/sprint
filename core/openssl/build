@@ -1,5 +1,11 @@
 #!/bin/sh -e
 
+./Configure linux-x86_64 \
+    --prefix=/usr \
+    --openssldir=/etc/ssl \
+    --libdir=lib \
+    shared
+
 make depend
 make
 

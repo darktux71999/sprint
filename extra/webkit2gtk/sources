@@ -1,5 +1,0 @@
-https://webkitgtk.org/releases/webkitgtk-2.52.5.tar.xz
-patches/x11-include-order.patch
-patches/fortify.patch
-patches/skia-fortify.patch
-patches/silence.patch

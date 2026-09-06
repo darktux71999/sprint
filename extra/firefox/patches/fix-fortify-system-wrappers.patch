@@ -1,0 +1,12 @@
+The system features.h must not be wrapped by Firefox's header wrapper.
+
+--- a/config/system-headers.mozbuild
++++ b/config/system-headers.mozbuild
+@@ -225,7 +225,6 @@
+     "exe386.h",
+     "extras.h",
+     "fcntl.h",
+-    "features.h",
+     "fenv.h",
+     "ffi.h",
+     "fibdef.h",

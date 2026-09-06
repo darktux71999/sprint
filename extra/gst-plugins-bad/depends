@@ -1,5 +1,0 @@
-gst-plugins-base
-gstreamer
-meson make
-pkgconf make
-samurai make

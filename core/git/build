@@ -23,7 +23,9 @@ EOF
     ac_cv_snprintf_returns_bogus=no \
     ac_cv_fread_reads_directories=yes
 
-make LIBS="$(curl-config --static-libs) libgit.a -lz"
-make DESTDIR="$1" install
+# Git 2.55 moved varint helpers to the optional Rust implementation. Keep
+# this package's existing no-Rust build and use the bundled C fallback.
+make NO_RUST=YesPlease LIBS="$(curl-config --static-libs) libgit.a -lz"
+make NO_RUST=YesPlease DESTDIR="$1" install
 
 cp -Rf man "$1/usr/share/man"
