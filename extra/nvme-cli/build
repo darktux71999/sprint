@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+meson setup build \
+    --prefix=/usr \
+    --wrap-mode=nodownload \
+    -Ddocs=man \
+    -Ddocs-build=false \
+    -Dsystemddir=/usr/lib/systemd/system \
+    -Dudevrulesdir=/usr/lib/udev/rules.d
+
+meson compile -C build
+DESTDIR="$1" meson install -C build
+
+rm -rf "$1/usr/share/doc" "$1/usr/share/html"

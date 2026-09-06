@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+meson setup build \
+    --prefix=/usr \
+    -Ddocs=man \
+    -Dtests=false \
+    -Dpython=disabled
+
+meson compile -C build
+DESTDIR="$1" meson install -C build
+
+rm -rf "$1/usr/share/doc" "$1/usr/share/gtk-doc"
