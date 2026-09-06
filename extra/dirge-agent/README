@@ -1,0 +1,7 @@
+The upstream `cargo install dirge-agent` enables the Janet plugin by default.
+Sprint builds the `no-plugin` feature set because janetrs 0.8.0 currently
+fails to generate compatible bindings with the system LLVM 22. All other
+upstream default features remain enabled, including MCP, LSP, ACP, tree-sitter
+language support and git worktrees.
+
+The installed command is `dirge`.
