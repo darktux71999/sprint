@@ -1,0 +1,24 @@
+#!/bin/sh -e
+
+# LLVM's llvm-as cannot assemble GNU-style .s files. Clang accepts one input,
+# so concatenate the inputs before passing them to its integrated assembler.
+output=
+inputs=
+
+while [ "$#" -gt 0 ]; do
+    case $1 in
+        -o)
+            shift
+            output=$1
+            ;;
+        -*)
+            ;;
+        *)
+            inputs="$inputs $1"
+            ;;
+    esac
+    shift
+done
+
+# shellcheck disable=SC2086
+cat $inputs | exec clang -c -x assembler -o "$output" -

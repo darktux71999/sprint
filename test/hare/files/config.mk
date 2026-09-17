@@ -19,7 +19,7 @@ LDLINKFLAGS = --gc-sections -z noexecstack
 # commands used by the build script
 HAREC = harec
 QBE = qbe
-AS = clang
+AS = ./as-wrapper
 LD = ld.lld
 SCDOC = scdoc
 
@@ -40,6 +40,6 @@ RISCV64_AS=as
 RISCV64_CC=cc
 RISCV64_LD=ld
 
-X86_64_AS=as
+X86_64_AS=/usr/libexec/hare/as-wrapper
 X86_64_CC=cc
 X86_64_LD=ld
