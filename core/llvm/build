@@ -3,14 +3,21 @@
 # ============================================================================
 # LLVM 22.1.8 build script for KISS Linux (musl x86_64)
 #
-# Pipeline: PGO + ThinLTO + BOLT via upstream CMake caches.
-#   clang/cmake/caches/BOLT-PGO.cmake → PGO.cmake + BOLT.cmake
+# Sincronizado con /var/db/kiss/installed/llvm/build (22.1.8-1) y extendido
+# con optimización conservadora: PGO + ThinLTO + BOLT vía cachés upstream.
+#   clang/cmake/caches/BOLT-PGO.cmake -> PGO.cmake + BOLT.cmake
 #
-# Etapas (multi-stage bootstrap via ninja):
-#   stage1              → host compiler (Release)
-#   stage2-instrumented → instrumented compiler (IR-based PGO)
-#   (generates profdata by compiling hello world, configurable)
-#   stage2 (final)      → PGO + ThinLTO + BOLT optimized compiler
+# Nivel de optimización: -O2 en todos los stages (Release conservador).
+# LLVM y Clang solo optimizan bien sus propios binarios con -O3; el caché
+# PGO-stage2-instrumented fija CMAKE_BUILD_TYPE=RELEASE, que usa -O3 en
+# Clang. Aquí se sobreescribe con CMAKE_C/CXX_FLAGS_RELEASE="-O2".
+#
+# Etapas (multi-stage bootstrap via ExternalProject):
+#   stage1              → host compiler (-O2)
+#   stage2-instrumented → instrumented compiler (IR-based PGO, -O2)
+#   (generates profdata compilando los objetivos de entrenamiento de clang)
+#   stage2 (final)      → -O2 + PGO + ThinLTO + BOLT, instala clang, lld y
+#                         llvm-bolt (necesario: distro pura LLVM/musl)
 # ============================================================================
 
 export DESTDIR="$1"
@@ -22,21 +29,41 @@ for patch in *.patch; do
 done
 
 # 2. Variables
-JOBS="$(nproc)"
+JOBS="10"
+# cmake --build (incluido el que lanzan los stages internos del bootstrap via
+# ExternalProject) respeta esta variable; ninja -j solo limita el build externo.
+# Sin esta export, los sub-builds corrían sin límite y causaron OOM puntual
+# (exit 137 en tblgen, log 2026-09-06); con ella, -j10 se mantiene en todo.
+CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"
+export CMAKE_BUILD_PARALLEL_LEVEL
+# ccache rompe el bootstrap: en los logs falla compilando BLAKE3 (.S) con
+# "ccache: unrecognized option: D" porque cc/gcc son wrappers de ccache.
+CCACHE_DISABLE=1
+export CCACHE_DISABLE
 HOST_TRIPLE="x86_64-pc-linux-musl"
 SRC="llvm"
 BUILD="build"
 
 # 3. Configure multi-stage build with BOLT-PGO + ThinLTO
+# PGO training targets (generate-profdata) live under perf-training, which
+# LLVM only adds when tests are enabled for the instrumented stage.
 cmake -S "$SRC" -B "$BUILD" -G Ninja \
     -C clang/cmake/caches/BOLT-PGO.cmake \
     -DPGO_INSTRUMENT_LTO=Thin \
+    -DBOOTSTRAP_LLVM_ENABLE_LTO=Thin \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_LTO=Thin \
+    -DCMAKE_C_FLAGS_RELEASE="-O2" \
+    -DCMAKE_CXX_FLAGS_RELEASE="-O2" \
+    -DBOOTSTRAP_CMAKE_C_FLAGS_RELEASE="-O2" \
+    -DBOOTSTRAP_CMAKE_CXX_FLAGS_RELEASE="-O2" \
+    -DBOOTSTRAP_BOOTSTRAP_CMAKE_C_FLAGS_RELEASE="-O2" \
+    -DBOOTSTRAP_BOOTSTRAP_CMAKE_CXX_FLAGS_RELEASE="-O2" \
+    -DCMAKE_INSTALL_PREFIX=/usr \
     -DBOOTSTRAP_LLVM_ENABLE_LLD=ON \
     -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_LLD=ON \
     -DLLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
     -DBOOTSTRAP_LLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
     -DBOOTSTRAP_BOOTSTRAP_LLVM_TARGETS_TO_BUILD="X86;AMDGPU" \
-    -DBOOTSTRAP_BOOTSTRAP_LLVM_INSTALL_TOOLCHAIN_ONLY=OFF \
     -DLLVM_HOST_TRIPLE="$HOST_TRIPLE" \
     -DLLVM_DEFAULT_TARGET_TRIPLE="$HOST_TRIPLE" \
     -DBOOTSTRAP_LLVM_HOST_TRIPLE="$HOST_TRIPLE" \
@@ -53,17 +80,18 @@ cmake -S "$SRC" -B "$BUILD" -G Ninja \
     -DLLVM_INCLUDE_BENCHMARKS=OFF \
     -DLLVM_INCLUDE_EXAMPLES=OFF \
     -DLLVM_INCLUDE_DOCS=OFF \
-    -DLLVM_INCLUDE_TESTS=OFF \
+    -DLLVM_INCLUDE_TESTS=ON \
     -DBOOTSTRAP_LLVM_ENABLE_LIBXML2=OFF \
     -DBOOTSTRAP_LLVM_INCLUDE_BENCHMARKS=OFF \
     -DBOOTSTRAP_LLVM_INCLUDE_EXAMPLES=OFF \
     -DBOOTSTRAP_LLVM_INCLUDE_DOCS=OFF \
-    -DBOOTSTRAP_LLVM_INCLUDE_TESTS=OFF \
+    -DBOOTSTRAP_LLVM_INCLUDE_TESTS=ON \
+    -DBOOTSTRAP_CLANG_PGO_TRAINING_DEPS="builtins;runtimes" \
     -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_LIBXML2=OFF \
     -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_BENCHMARKS=OFF \
     -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_EXAMPLES=OFF \
     -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_DOCS=OFF \
-    -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_TESTS=OFF \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_INCLUDE_TESTS=ON \
     -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
     -DCOMPILER_RT_BUILD_XRAY=OFF \
     -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
@@ -118,32 +146,47 @@ cmake -S "$SRC" -B "$BUILD" -G Ninja \
     -DBOOTSTRAP_BOOTSTRAP_CLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
     -DBOOTSTRAP_BOOTSTRAP_LIBCLANG_BUILD_STATIC=ON \
     -DBOOTSTRAP_BOOTSTRAP_LLVM_INSTALL_BINUTILS_SYMLINKS=ON \
+    -DBOOTSTRAP_BOOTSTRAP_LLVM_DISTRIBUTION_COMPONENTS="clang;clang-resource-headers;lld;llvm-bolt" \
     -Wno-dev
 
-# 4. Build: stage1 → stage2-instrumented → profdata → stage2 → BOLT
-echo "=== BOLT-PGO Multi-Stage Build ==="
-echo "Builds LLVM 3 times (stage1, instrumented, final PGO) + BOLT."
+# 4. Build: stage1 -> stage2-instrumented -> profdata -> stage2 -> BOLT
+echo "=== BOLT-PGO Multi-Stage Build (-O2 + PGO + ThinLTO + BOLT) ==="
+echo "Builds LLVM through stage1, instrumented stage2, final PGO stage and BOLT."
 echo "This can take several hours."
 echo ""
 
-ninja -j"$JOBS" stage2-clang-bolt
+ninja -C "$BUILD" -j"$JOBS" stage2-clang-bolt
 
-# 5. Install from stage2 (PGO + ThinLTO + BOLT) to DESTDIR
+# 5. Install the stage2 distribution (PGO + ThinLTO + BOLT) to DESTDIR
+# Los componentes instalados (clang, clang-resource-headers, lld, llvm-bolt)
+# quedan fijados arriba en BOOTSTRAP_BOOTSTRAP_LLVM_DISTRIBUTION_COMPONENTS.
 echo "=== Installing stage2 (PGO+ThinLTO+BOLT) ==="
-DESTDIR="$1" cmake --build "$BUILD/tools/clang/stage2-instrumented-bins" --target stage2-install
+DESTDIR="$1" cmake --build "$BUILD" --target stage2-install-distribution -j "$JOBS"
 
 # 6. Post-install: GCC/Binutils symlinks
 cd "$1/usr/bin"
 
 ln -sf lld         ld
+ln -sf ld.lld      ld.lld
+ln -sf lld         ld.gold
 ln -sf clang       cc
 ln -sf clang       gcc
 ln -sf clang       cpp
 ln -sf clang++     c++
 ln -sf clang++     g++
+ln -sf llvm-ar     ar
+ln -sf llvm-ar     x86_64-pc-linux-musl-ar
+ln -sf llvm-nm     nm
+ln -sf llvm-ranlib ranlib
+ln -sf llvm-objcopy objcopy
+ln -sf llvm-objcopy strip
+ln -sf llvm-readelf readelf
+ln -sf llvm-as     as
+ln -sf llvm-strings strings
+ln -sf llvm-size   size
 
 # Optional c89/c99 scripts from sources/files
-if [ -f "$OLDPWD/files/c89" ]; then
-    install -m755 "$OLDPWD/files/c89" .
-    install -m755 "$OLDPWD/files/c99" .
-fi
+#if [ -f "$OLDPWD/files/c89" ]; then
+#    install -m755 "$OLDPWD/files/c89" .
+#    install -m755 "$OLDPWD/files/c99" .
+#fi

@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+./configure \
+    --prefix=/usr \
+    --disable-gettext \
+    --disable-nls \
+    --with-libattr
+
+make
+make DESTDIR="$1" install

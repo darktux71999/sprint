@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+meson setup \
+    -Dprefix=/usr \
+    -Dbuildtype=release \
+    -Dflavors=x11-gl \
+    -Ddata-path=/usr/share/glmark2 \
+    output
+
+ninja -C output
+ninja -C output install

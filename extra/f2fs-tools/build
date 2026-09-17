@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+patch -p1 < musl-lseek64.patch
+
+autoreconf -fi
+
+./configure \
+    --prefix=/usr \
+    --disable-static
+
+make
+make DESTDIR="$1" install
+
+rm -rf "$1/usr/share/doc"

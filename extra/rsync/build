@@ -1,0 +1,17 @@
+#!/bin/sh -e
+
+./configure \
+    --prefix=/usr \
+    --with-included-popt=yes \
+    --with-included-zlib=no \
+    --disable-md2man \
+    --disable-lz4 \
+    --disable-zstd \
+    --disable-xxhash \
+    --without-libiconv \
+    --with-openssl \
+    --with-acl \
+    --with-xattrs
+
+make
+make DESTDIR="$1" install-strip

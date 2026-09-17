@@ -1,0 +1,6 @@
+libX11
+libXext
+libdrm
+mesa
+meson         make
+pkgconf       make

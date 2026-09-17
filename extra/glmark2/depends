@@ -1,0 +1,5 @@
+libjpeg-turbo
+libpng
+mesa
+meson         make
+pkgconf       make

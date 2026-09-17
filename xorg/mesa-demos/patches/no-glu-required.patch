@@ -1,0 +1,40 @@
+--- a/meson.build
++++ b/meson.build
+@@ -95,7 +95,7 @@
+     _glu_name = 'glu32'
+   endif
+   dep_glu = cc.find_library(_glu_name, has_headers: 'GL/glu.h',
+-    required : dep_x11.found())
++    required : false)
+ endif
+
+ dep_glx = dependency('glx', required: false, disabler : true)
+--- a/src/util/readtex.c
++++ b/src/util/readtex.c
+@@ -338,12 +338,7 @@
+       return GL_FALSE;
+    }
+
+-   error = gluBuild2DMipmaps( target,
+-                              intFormat,
+-                              image->sizeX, image->sizeY,
+-                              format,
+-                              GL_UNSIGNED_BYTE,
+-                              image->data );
++   error = 0; /* GLU not required */
+
+    *width = image->sizeX;
+    *height = image->sizeY;
+--- a/src/util/gl_wrap.h
++++ b/src/util/gl_wrap.h
+@@ -10,7 +10,9 @@
+ #  include <OpenGL/glu.h>
+ #else
+ #  include <GL/gl.h>
+-#  include <GL/glu.h>
++#  ifndef GLU_NOT_REQUIRED
++#    include <GL/glu.h>
++#  endif
+ #endif
+
+ #ifndef GLAPIENTRY
