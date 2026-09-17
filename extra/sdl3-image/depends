@@ -1,0 +1,6 @@
+cmake    make
+libjpeg-turbo
+libpng
+pkgconf  make
+samurai  make
+sdl3

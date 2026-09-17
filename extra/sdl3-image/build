@@ -1,0 +1,25 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+cmake -B build -G Ninja \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DSDL3IMAGE_AVIF=OFF \
+    -DSDL3IMAGE_JPG=ON \
+    -DSDL3IMAGE_JPG_SHARED=OFF \
+    -DSDL3IMAGE_JXL=OFF \
+    -DSDL3IMAGE_PNG=ON \
+    -DSDL3IMAGE_PNG_SHARED=OFF \
+    -DSDL3IMAGE_TIF=OFF \
+    -DSDL3IMAGE_WEBP=OFF \
+    -DSDL3IMAGE_BACKEND_STB=OFF \
+    -DSDL3IMAGE_SAMPLES=OFF \
+    -DSDL3IMAGE_VENDORED=OFF \
+    -Wno-dev
+
+samu -C build
+DESTDIR="$1" samu -C build install
+
+rm -f "$1/usr/lib/"*.a
+rm -rf "$1/usr/lib/cmake"
