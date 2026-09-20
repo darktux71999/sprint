@@ -1,0 +1,23 @@
+#!/bin/sh -e
+
+mkdir build
+cd build
+
+../configure \
+    --prefix=/usr \
+    --libdir=/usr/lib \
+    --target-list=x86_64-softmmu \
+    --enable-kvm \
+    --enable-slirp \
+    --enable-sdl \
+    --enable-linux-aio \
+    --enable-seccomp \
+    --enable-virtfs \
+    --audio-drv-list=alsa,sdl \
+    --disable-docs \
+    --disable-gtk \
+    --disable-spice \
+    --disable-werror
+
+ninja
+DESTDIR="$1" ninja install

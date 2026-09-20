@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+cmake -S lldb -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DLLDB_ENABLE_LIBEDIT=ON \
+    -DLLDB_ENABLE_LUA=OFF \
+    -DLLDB_ENABLE_PYTHON=OFF \
+    -DLLDB_INCLUDE_TESTS=OFF
+
+cmake --build build
+DESTDIR="$DESTDIR" cmake --install build

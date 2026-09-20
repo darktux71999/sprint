@@ -1,0 +1,17 @@
+alsa-lib
+attr
+bison make
+flex make
+glib
+libaio
+libcap
+libseccomp
+libslirp
+linux-headers
+meson make
+pixman
+pkgconf make
+python make
+samurai make
+sdl2
+zlib

@@ -1,0 +1,10 @@
+cmake make
+libedit
+libffi
+libxml2
+llvm
+ncurses
+pkgconf make
+samurai make
+xz
+zlib
