@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+# The upstream build has no install target and hardcodes host-specific tuning.
+sed -i 's/, '\''-march=native'\''//' wscript
+
+./waf configure \
+    --no-werror
+./waf build
+
+install -Dm755 build/src/zutty "$1/usr/bin/zutty"
