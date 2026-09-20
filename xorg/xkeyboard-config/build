@@ -20,9 +20,10 @@ meson setup \
 ninja -C output
 ninja -C output install
 
-# KISS cannot migrate the existing /usr/share/X11/xkb directory to a
-# symlink during an upgrade. Keep XKB rules at the legacy X11 path and
-# provide the versioned path as a symlink instead.
+# KISS does not replace an existing directory with the legacy symlink during
+# an upgrade.  Keep the canonical database for libxkbcommon and install a
+# real legacy copy for Xorg, so both paths work without udev/systemd tooling.
 rm -f "$DESTDIR/usr/share/X11/xkb"
-mv "$DESTDIR/usr/share/xkeyboard-config-2" "$DESTDIR/usr/share/X11/xkb"
-ln -s X11/xkb "$DESTDIR/usr/share/xkeyboard-config-2"
+mkdir -p "$DESTDIR/usr/share/X11/xkb"
+cp -R "$DESTDIR/usr/share/xkeyboard-config-2/." \
+    "$DESTDIR/usr/share/X11/xkb"

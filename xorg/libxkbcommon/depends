@@ -3,3 +3,4 @@ libxcb
 meson   make
 pkgconf make
 samurai make
+xkeyboard-config
