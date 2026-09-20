@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+export DESTDIR="$1" PREFIX=/usr MANPREFIX=/usr/share/man
+
+# The Makefile probes dependencies via pkg-config; pkgconf provides the same
+# modules (libssl libcrypto libbrotlidec libbrotlicommon libssh2).
+export PKG_CONFIG=pkgconf
+
+make
+make install

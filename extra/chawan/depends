@@ -1,0 +1,6 @@
+brotli
+libssh2
+openssl
+make make
+nim make
+pkgconf make
