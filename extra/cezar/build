@@ -1,4 +1,9 @@
 #!/bin/sh -e
 
+# The upstream Makefile uses CFLAGS ?=, so KISS's exported CFLAGS suppress
+# its _GNU_SOURCE default.  Keep the distro flags and add the required feature
+# declaration for strcasestr() on musl.
+CFLAGS="${CFLAGS-} -D_GNU_SOURCE"
+export CFLAGS
 make
 install -Dm755 build/cezar "$1/usr/bin/cezar"
