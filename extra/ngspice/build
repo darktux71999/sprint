@@ -1,0 +1,46 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+for patch in *.patch; do
+    [ -f "$patch" ] || continue
+    patch -p1 < "$patch"
+done
+
+autoreconf -vfi
+
+config_flags="
+    --prefix=/usr
+    --mandir=/usr/share/man
+    --infodir=/usr/share/info
+    --with-readline=yes
+    --enable-xspice
+    --enable-cider
+    "
+
+config_flags_shared="
+    $config_flags
+    --with-ngshared
+    "
+
+mkdir -p libs
+(
+    cd libs
+    # Word splitting is intentional for the configure flags.
+    # shellcheck disable=SC2086
+    ../configure $config_flags_shared
+    make
+)
+
+mkdir -p bin
+(
+    cd bin
+    # The standalone executable is built without --with-ngshared.
+    # shellcheck disable=SC2086
+    ../configure $config_flags
+    make
+)
+
+cp bin/src/ngspice libs/src/
+make -C bin DESTDIR="$DESTDIR" install
+make -C libs DESTDIR="$DESTDIR" install

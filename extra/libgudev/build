@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	--libexecdir=/usr/lib \
+	-Dbuildtype=release \
+	-Dintrospection=enabled \
+	-Dvapi=enabled
+samu -C build
+DESTDIR="$1" samu -C build install
+install -Dm644 COPYING "$1/usr/share/licenses/libgudev/COPYING"

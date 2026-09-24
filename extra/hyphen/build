@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+autoreconf -fiv
+./configure \
+	--prefix=/usr \
+	--disable-static
+make
+make DESTDIR="$1" install
+install -Dm644 COPYING "$1/usr/share/licenses/hyphen/COPYING"
+install -Dm644 COPYING.MPL "$1/usr/share/licenses/hyphen/COPYING.MPL"

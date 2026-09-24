@@ -1,0 +1,50 @@
+at-spi2-core
+bubblewrap
+cmake make
+enchant
+expat
+flex make
+freetype-harfbuzz
+geoclue
+gettext make
+glib
+gobject-introspection make
+gperf make
+gst-plugins-bad
+gst-plugins-base
+gst-plugins-good
+gstreamer
+gtk+3
+hyphen
+icu
+lcms2
+libXt
+libavif
+libgcrypt
+libjpeg-turbo
+libjxl
+libmanette
+libnotify
+libpng
+libpsl
+libseccomp
+libsecret
+libsoup3
+libspiel
+libtasn1
+libwebp
+libxkbcommon
+libxml2
+libxslt
+mesa
+openjpeg
+perl make
+pkgconf make
+python make
+ruby make
+samurai make
+sqlite
+sysprof-capture
+unifdef make
+woff2
+xdg-dbus-proxy

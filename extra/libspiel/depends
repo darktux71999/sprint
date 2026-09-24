@@ -1,0 +1,7 @@
+glib
+gobject-introspection make
+gst-plugins-base
+gstreamer
+libspeechprovider
+meson make
+pkgconf make

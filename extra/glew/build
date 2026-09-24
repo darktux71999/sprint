@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+make \
+    SYSTEM=linux-clang \
+    CFLAGS.EXTRA="$CFLAGS -fPIC" \
+    LDFLAGS.EXTRA="$LDFLAGS"
+
+make \
+    SYSTEM=linux-clang \
+    GLEW_DEST="$DESTDIR/usr" \
+    GLEW_PREFIX=/usr \
+    install
+
+rm -rf "$DESTDIR/usr/share/doc"

@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	--libexecdir=/usr/lib \
+	-Dbuildtype=release \
+	-Ddocumentation=disabled \
+	-Dtests=false
+samu -C build
+DESTDIR="$1" samu -C build install
+rm -rf "$1/usr/share/doc"
+install -Dm644 COPYING "$1/usr/share/licenses/json-glib/COPYING"

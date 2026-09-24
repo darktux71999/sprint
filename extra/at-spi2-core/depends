@@ -1,0 +1,10 @@
+dbus
+gettext make
+glib
+gobject-introspection make
+libSM
+libXext
+libXtst
+libxml2
+meson make
+pkgconf make

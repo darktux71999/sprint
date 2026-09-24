@@ -1,0 +1,34 @@
+#!/bin/sh -e
+
+autoreconf -fiv
+./configure \
+	--prefix=/usr \
+	--sysconfdir=/etc \
+	--with-distro=none \
+	--disable-autoipd \
+	--disable-compat-howl \
+	--disable-compat-libdns_sd \
+	--disable-gdbm \
+	--disable-doxygen-doc \
+	--disable-gtk \
+	--disable-gtk3 \
+	--disable-libdaemon \
+	--disable-libsystemd \
+	--disable-mono \
+	--disable-monodoc \
+	--disable-python \
+	--disable-qt3 \
+	--disable-qt4 \
+	--disable-qt5 \
+	--enable-glib \
+	--enable-introspection \
+	--disable-manpages
+make
+make DESTDIR="$1" install
+rm -rf "$1/usr/share/doc"
+for license in LICENSE COPYING; do
+	if [ -f "$license" ]; then
+		install -Dm644 "$license" "$1/usr/share/licenses/avahi-glib/$license"
+		break
+	fi
+done

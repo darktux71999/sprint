@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+make
+make DESTDIR="$1" prefix=/usr install
+
+install -Dm644 COPYING "$1/usr/share/licenses/unifdef/COPYING"

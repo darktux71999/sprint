@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+patch -p1 < no-html-docs.patch
+
+autoreconf -fiv
+./configure \
+	--prefix=/usr \
+	--enable-relocatable \
+	--disable-static
+make
+make DESTDIR="$1" install
+install -Dm644 COPYING.LIB "$1/usr/share/licenses/enchant/COPYING.LIB"

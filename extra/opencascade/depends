@@ -1,0 +1,6 @@
+cmake make
+freetype-harfbuzz
+libXi
+libXmu
+mesa
+samurai make

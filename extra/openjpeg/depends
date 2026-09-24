@@ -1,0 +1,6 @@
+cmake make
+lcms2
+libpng
+libtiff
+pkgconf make
+samurai make

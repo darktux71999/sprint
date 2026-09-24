@@ -1,0 +1,28 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	-DwxBUILD_PRECOMP=OFF \
+	-DwxBUILD_TESTS=OFF \
+	-DwxBUILD_TOOLKIT=gtk3 \
+	-DwxUSE_EXPAT=sys \
+	-DwxUSE_GLCANVAS_EGL=ON \
+	-DwxUSE_GTKPRINT=ON \
+	-DwxUSE_LIBJPEG=sys \
+	-DwxUSE_LIBLZMA=sys \
+	-DwxUSE_LIBPNG=sys \
+	-DwxUSE_LIBTIFF=sys \
+	-DwxUSE_OPENGL=ON \
+	-DwxUSE_PRIVATE_FONTS=ON \
+	-DwxUSE_REGEX=sys \
+	-DwxUSE_ZLIB=sys \
+	-DOPENGL_opengl_LIBRARY=/usr/lib/libGL.so
+
+samu -C build
+DESTDIR="$1" samu -C build install
+
+install -Dm644 docs/licence.txt "$1/usr/share/licenses/wxwidgets/LICENSE"
+rm -rf "$1/usr/share/doc"

@@ -1,0 +1,24 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+meson setup output \
+    -Dprefix=/usr \
+    -Dsysconfdir=/etc \
+    -Dlocalstatedir=/var \
+    -Dbrotli=enabled \
+    -Ddocs=disabled \
+    -Ddoc_tests=false \
+    -Dgssapi=disabled \
+    -Dintrospection=enabled \
+    -Dpkcs11_tests=disabled \
+    -Dsysprof=disabled \
+    -Dtests=false \
+    -Dvapi=disabled \
+    -Dinstalled_tests=false
+
+samu -C output
+samu -C output install
+
+rm -rf "$1/usr/share/doc"
+install -Dm644 COPYING "$1/usr/share/licenses/libsoup3/COPYING"

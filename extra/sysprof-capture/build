@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	--libexecdir=/usr/lib \
+	-Dbuildtype=release \
+	-Dexamples=false \
+	-Dgtk=false \
+	-Dhelp=false \
+	-Dlibsysprof=false \
+	-Dsysprofd=none \
+	-Dtests=false \
+	-Dtools=false
+samu -C build
+DESTDIR="$1" samu -C build install
+install -Dm644 src/libsysprof-capture/COPYING "$1/usr/share/licenses/sysprof-capture/COPYING"

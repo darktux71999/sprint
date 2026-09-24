@@ -1,0 +1,7 @@
+aom
+cmake make
+libjpeg-turbo
+libpng
+libwebp
+pkgconf make
+zlib

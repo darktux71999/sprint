@@ -1,0 +1,9 @@
+bison make
+flex make
+glib
+meson make
+pkgconf make
+python
+python-mako
+python-markdown
+python-setuptools

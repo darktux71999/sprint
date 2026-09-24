@@ -1,0 +1,5 @@
+automake make
+gawk make
+libtool make
+perl make
+pkgconf make

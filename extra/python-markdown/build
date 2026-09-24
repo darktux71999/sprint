@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+python -m build --wheel --no-isolation
+python -m installer --destdir="$1" dist/*.whl
+
+install -Dm644 LICENSE.md "$1/usr/share/licenses/python-markdown/LICENSE"

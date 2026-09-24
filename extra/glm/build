@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DGLM_BUILD_LIBRARY=OFF \
+    -DGLM_BUILD_TESTS=OFF
+
+cmake --build build
+cmake --install build
+
+rm -rf "$DESTDIR/usr/share/doc"

@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	--libexecdir=/usr/lib \
+	-Dbuildtype=release \
+	-Dgtk_doc=false \
+	-Dbuild_introspection_data=true \
+	-Dtests=false
+
+samu -C build
+DESTDIR="$1" samu -C build install
+
+rm -rf "$1/usr/share/doc"

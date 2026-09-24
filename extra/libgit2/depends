@@ -1,0 +1,8 @@
+cmake make
+libssh2
+llhttp
+openssl
+pcre2
+pkgconf make
+samurai make
+zlib

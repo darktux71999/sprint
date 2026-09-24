@@ -1,0 +1,11 @@
+avahi-glib
+gettext make
+glib
+gobject-introspection make
+json-glib
+libnotify
+libsoup3
+libudev-zero
+meson make
+pkgconf make
+vala make

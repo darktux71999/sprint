@@ -1,0 +1,3 @@
+linux-headers
+meson make
+pkgconf make

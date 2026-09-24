@@ -1,0 +1,6 @@
+glib
+gobject-introspection make
+libudev-zero
+meson make
+pkgconf make
+vala make

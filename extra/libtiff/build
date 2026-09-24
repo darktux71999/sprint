@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+./configure \
+	--prefix=/usr \
+	--mandir=/usr/share/man \
+	--disable-static \
+	--enable-cxx \
+	--without-x
+
+make
+make DESTDIR="$1" install
+
+install -Dm644 LICENSE.md "$1/usr/share/licenses/libtiff/LICENSE.md"

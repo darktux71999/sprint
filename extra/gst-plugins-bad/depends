@@ -1,0 +1,8 @@
+gettext make
+glib
+gobject-introspection make
+gst-plugins-base
+gstreamer
+meson make
+orc
+pkgconf make

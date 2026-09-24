@@ -1,0 +1,21 @@
+boost
+cairo
+cmake make
+curl
+glew
+glm
+glu
+libgit2
+libspnav
+mesa
+ngspice
+nng
+opencascade
+poppler
+protobuf
+python
+samurai make
+swig make
+unixodbc
+wxwidgets
+zlib

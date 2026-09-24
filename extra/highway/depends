@@ -1,0 +1,4 @@
+cmake make
+gtest
+linux-headers
+samurai make

@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DBUILD_SHARED_LIBS=ON \
+	-DHWY_CMAKE_RVV=OFF \
+	-DHWY_ENABLE_EXAMPLES=OFF \
+	-DHWY_ENABLE_TESTS=OFF
+cmake --build build --parallel 8
+DESTDIR="$1" cmake --install build
+install -Dm644 LICENSE-BSD3 "$1/usr/share/licenses/highway/LICENSE-BSD3"

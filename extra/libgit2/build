@@ -1,0 +1,18 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DBUILD_TESTS=OFF \
+	-DBUILD_CLI=OFF \
+	-DUSE_SSH=ON \
+	-DREGEX_BACKEND=pcre2 \
+	-DUSE_BUNDLED_ZLIB=OFF \
+	-DUSE_HTTP_PARSER=llhttp \
+	-DUSE_HTTPS=OpenSSL
+
+samu -C build
+DESTDIR="$1" samu -C build install
+
+rm -rf "$1/usr/share/doc"

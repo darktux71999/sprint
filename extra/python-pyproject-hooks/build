@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+python -m flit_core.wheel
+python -m installer --destdir="$1" dist/*.whl
+
+install -Dm644 LICENSE "$1/usr/share/licenses/python-pyproject-hooks/LICENSE"

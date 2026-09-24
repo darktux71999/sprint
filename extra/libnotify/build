@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	-Dintrospection=enabled \
+	-Ddocbook_docs=disabled \
+	-Dman=false \
+	-Dgtk_doc=false \
+	-Dtests=false
+
+samu -C build
+DESTDIR="$1" samu -C build install
+
+install -Dm644 COPYING "$1/usr/share/licenses/libnotify/COPYING"

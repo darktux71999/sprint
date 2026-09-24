@@ -1,0 +1,9 @@
+aspell
+automake make
+glib
+hunspell
+icu
+libtool make
+nuspell
+pkgconf make
+vala make

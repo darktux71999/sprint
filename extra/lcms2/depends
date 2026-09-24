@@ -1,0 +1,4 @@
+libjpeg-turbo
+libtiff
+meson make
+pkgconf make

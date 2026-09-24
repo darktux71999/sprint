@@ -1,0 +1,37 @@
+diff --git a/lib/Makefile.am b/lib/Makefile.am
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -43,7 +43,6 @@
+ libenchant_data_DATA = enchant.ordering
+ 
+ dist_man_MANS = enchant.5
+-nodist_doc_DATA = enchant.html
+ 
+ edit = sed \
+ 	-e 's|@PKGDATADIR[@]|$(pkgdatadir)|g' \
+@@ -56,8 +55,6 @@
+ 	$(edit) $(abs_builddir)/enchant.5.in >$@.tmp
+ 	mv $@.tmp $@
+ 
+-enchant.html: enchant.5
+-	groff -mandoc -Thtml $< > $@
+ 
+ EXTRA_DIST = $(libenchant_data_DATA) $(VAPIS)
+ 
+diff --git a/src/Makefile.am b/src/Makefile.am
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -26,12 +26,9 @@
+ util.h util.vapi: libutil.la
+ 
+ dist_man_MANS = enchant-@ENCHANT_MAJOR_VERSION@.1 enchant-lsmod-@ENCHANT_MAJOR_VERSION@.1
+-nodist_doc_DATA = enchant-@ENCHANT_MAJOR_VERSION@.html enchant-lsmod-@ENCHANT_MAJOR_VERSION@.html
+ 
+-DISTCLEANFILES = $(dist_man_MANS) $(nodist_doc_DATA) dummy.vala
++DISTCLEANFILES = $(dist_man_MANS) dummy.vala
+ 
+-.1.html:
+-	groff -mandoc -Thtml $< > $@
+ 
+ enchant-@ENCHANT_MAJOR_VERSION@.1: $(builddir)/enchant.1 Makefile.am $(top_builddir)/config.status
+ 	cp $(abs_builddir)/enchant.1 $@

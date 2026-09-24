@@ -1,0 +1,9 @@
+autoconf make
+automake make
+bison make
+flex make
+glib
+gobject-introspection
+libtool make
+libxslt
+pkgconf make

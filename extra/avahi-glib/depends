@@ -1,0 +1,9 @@
+autoconf make
+automake make
+dbus
+expat
+gettext make
+glib
+gobject-introspection make
+libtool make
+pkgconf make

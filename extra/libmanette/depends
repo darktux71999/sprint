@@ -1,0 +1,8 @@
+glib
+gobject-introspection make
+hidapi
+libevdev
+libgudev
+meson make
+pkgconf make
+vala make

@@ -1,0 +1,7 @@
+glib
+gst-plugins-base
+gstreamer
+libsoup
+meson make
+orc
+pkgconf make

@@ -1,0 +1,17 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+cmake -B build -G Ninja -Wno-dev \
+    -DCMAKE_BUILD_TYPE=MinSizeRel \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DKICAD_USE_EGL=ON \
+    -DKICAD_SCRIPTING_WXPYTHON=OFF \
+    -DKICAD_BUILD_I18N=ON \
+    -DOPENGL_opengl_LIBRARY=/usr/lib/libGL.so
+
+# KiCad's generated lexer header must exist before the parallel build.
+cmake --build build --target common/pcb_lexer.h
+cmake --build build
+cmake --install build

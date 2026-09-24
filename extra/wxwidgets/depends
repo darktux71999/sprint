@@ -1,0 +1,20 @@
+cmake make
+curl
+expat
+glu
+gst-plugins-base
+gtk+3
+libjpeg-turbo
+libnotify
+libpng
+libsecret
+libsm
+libtiff
+mesa
+pcre2
+pkgconf make
+samurai make
+sdl2-compat
+webkitgtk
+xz
+zlib

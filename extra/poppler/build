@@ -1,0 +1,19 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DBUILD_SHARED_LIBS=ON \
+	-DENABLE_BOOST=ON \
+	-DENABLE_CPP=ON \
+	-DENABLE_GLIB=ON \
+	-DENABLE_GOBJECT_INTROSPECTION=ON \
+	-DENABLE_NSS3=ON \
+	-DENABLE_QT5=OFF \
+	-DENABLE_QT6=OFF \
+	-DENABLE_TESTS=OFF \
+	-DENABLE_UTILS=ON
+cmake --build build
+DESTDIR="$1" cmake --install build
+rm -rf "$1/usr/share/doc"
+install -Dm644 COPYING "$1/usr/share/licenses/poppler/COPYING"

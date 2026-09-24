@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+PYTHONPATH=src python -m build --wheel --no-isolation
+python -m installer --destdir="$1" dist/build-1.5.0-py3-none-any.whl
+
+install -Dm644 LICENSE "$1/usr/share/licenses/python-build/LICENSE"

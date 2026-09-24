@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DBUILD_SHARED_LIBS=ON \
+	-DAVIF_BUILD_APPS=OFF \
+	-DAVIF_BUILD_TESTS=OFF \
+	-DAVIF_CODEC_AOM=SYSTEM \
+	-DAVIF_CODEC_DAV1D=OFF \
+	-DAVIF_LIBYUV=OFF
+cmake --build build
+DESTDIR="$1" cmake --install build
+install -Dm644 LICENSE "$1/usr/share/licenses/libavif/LICENSE"

@@ -1,0 +1,12 @@
+brotli
+glib
+glib-networking
+gobject-introspection make
+libnghttp2
+libpsl
+libxml2
+meson make
+pkgconf make
+samurai make
+sqlite
+zlib

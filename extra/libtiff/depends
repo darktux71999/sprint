@@ -1,0 +1,9 @@
+autoconf make
+automake make
+jbigkit
+libjpeg-turbo
+libtool make
+pkgconf make
+xz
+zlib
+zstd

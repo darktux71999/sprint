@@ -1,0 +1,16 @@
+boost
+cairo
+cmake make
+curl
+glib
+gobject-introspection make
+lcms2
+libjpeg-turbo
+libpng
+libtiff
+mesa
+nss
+openjpeg
+pkgconf make
+samurai make
+zlib

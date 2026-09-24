@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	--libexecdir=/usr/lib \
+	-Dbuildtype=release \
+	-Dauto_features=disabled \
+	-Ddoc=disabled \
+	-Dexamples=disabled \
+	-Dglib_assert=false \
+	-Dglib_checks=false \
+	-Dtests=disabled
+samu -C build
+DESTDIR="$1" samu -C build install
+rm -rf "$1/usr/share/doc"
+install -Dm644 COPYING "$1/usr/share/licenses/gst-plugins-bad/COPYING"

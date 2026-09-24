@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+./configure \
+	--prefix=/usr \
+	--with-ui \
+	--with-readline \
+	--disable-static \
+	--without-included-gettext
+make
+make DESTDIR="$1" install
+install -Dm644 COPYING "$1/usr/share/licenses/hunspell/COPYING"

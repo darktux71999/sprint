@@ -1,0 +1,51 @@
+#!/bin/sh -e
+
+export CFLAGS="${CFLAGS:-} -DNDEBUG"
+export CXXFLAGS="${CXXFLAGS:-} -DNDEBUG -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE -Wno-deprecated-declarations -Wno-deprecated-copy"
+
+LINKER="$(command -v ld.lld)"
+JOBS="${KISS_JOBS:-8}"
+
+cmake -B build -G Ninja \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DCMAKE_SKIP_RPATH=ON \
+	-DCMAKE_C_COMPILER=clang \
+	-DCMAKE_CXX_COMPILER=clang++ \
+	-DCMAKE_C_COMPILER_TARGET=x86_64-pc-linux-musl \
+	-DCMAKE_CXX_COMPILER_TARGET=x86_64-pc-linux-musl \
+	-DCMAKE_AR=llvm-ar \
+	-DCMAKE_RANLIB=llvm-ranlib \
+	-DCMAKE_NM=llvm-nm \
+	-DCMAKE_LINKER="$LINKER" \
+	-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld \
+	-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld \
+	-DPORT=GTK \
+	-DUSE_GTK4=OFF \
+	-DUSE_LD_LLD=ON \
+	-DUSE_LIBBACKTRACE=OFF \
+	-DUSE_SOUP2=OFF \
+	-DUSE_WOFF2=ON \
+	-DUSE_FLITE=OFF \
+	-DUSE_SPIEL=ON \
+	-DENABLE_BUBBLEWRAP_SANDBOX=ON \
+	-DENABLE_DOCUMENTATION=OFF \
+	-DENABLE_INTROSPECTION=ON \
+	-DENABLE_JOURNALD_LOG=OFF \
+	-DENABLE_MINIBROWSER=ON \
+	-DENABLE_SAMPLING_PROFILER=OFF \
+	-DENABLE_WAYLAND_TARGET=OFF \
+	-DENABLE_X11_TARGET=ON \
+	-DENABLE_JIT=ON \
+	-DENABLE_C_LOOP=OFF \
+	-DENABLE_WEBASSEMBLY=ON \
+	-DLTO_MODE=thin
+
+samu -j "$JOBS" -C build
+DESTDIR="$1" samu -j "$JOBS" -C build install
+
+install -Dm644 Source/WebCore/LICENSE-APPLE "$1/usr/share/licenses/webkitgtk/LICENSE-APPLE"
+install -Dm644 Source/WebCore/LICENSE-LGPL-2.1 "$1/usr/share/licenses/webkitgtk/LICENSE-LGPL-2.1"
+install -Dm644 Source/WebCore/LICENSE-LGPL-2 "$1/usr/share/licenses/webkitgtk/LICENSE-LGPL-2"
+rm -rf "$1/usr/share/doc"

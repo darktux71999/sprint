@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
+samu -C build
+DESTDIR="$1" samu -C build install
+
+install -Dm644 LICENSE "$1/usr/share/licenses/woff2/LICENSE"

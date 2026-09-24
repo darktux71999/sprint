@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DBUILD_SHARED_LIBS=ON \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DENABLE_APPS=OFF \
+	-DENABLE_EXAMPLES=OFF \
+	-DENABLE_TESTS=OFF
+cmake --build build
+DESTDIR="$1" cmake --install build
+install -Dm644 LICENSE "$1/usr/share/licenses/aom/LICENSE"

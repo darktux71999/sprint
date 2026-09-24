@@ -1,0 +1,26 @@
+#!/bin/sh -e
+
+# The dist tarball bundles pre-generated C code (c_code/) matching this
+# release exactly; build.sh compiles the bootstrap compiler from it.
+sh build.sh
+
+mkdir -p bin
+
+bin/nim c --noNimblePath --skipUserCfg --skipParentCfg --hints:off koch
+./koch boot -d:release --skipUserCfg --skipParentCfg --hints:off
+./koch toolsNoExternal --skipUserCfg --skipParentCfg --hints:off
+
+export DESTDIR="$1"
+
+install -Dm755 bin/nim "$DESTDIR/usr/bin/nim"
+for t in nim_dbg nimgrep nimpretty nimsuggest testament; do
+    [ -f "bin/$t" ] || continue
+    install -Dm755 "bin/$t" "$DESTDIR/usr/bin/$t"
+done
+
+# A /usr/bin/nim binary resolves its prefix to /usr/lib/nim and its stdlib
+# to /usr/lib/nim/lib (options.nim getPrefixDir), hence the self-symlink.
+mkdir -p "$DESTDIR/usr/lib/nim"
+cp -r lib/. "$DESTDIR/usr/lib/nim/"
+ln -s . "$DESTDIR/usr/lib/nim/lib"
+cp -r config doc "$DESTDIR/usr/lib/nim/"

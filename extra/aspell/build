@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+LDFLAGS="$LDFLAGS -lintl" \
+LIBS="-lncursesw -ltinfow" \
+./configure \
+	--prefix=/usr \
+	--sysconfdir=/etc \
+	--enable-dict-dir=/usr/share/aspell \
+	--enable-pkgdatadir=/usr/share/aspell \
+	--enable-compile-in-filters
+make
+make DESTDIR="$1" install
+install -Dm644 COPYING "$1/usr/share/licenses/aspell/COPYING"

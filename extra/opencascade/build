@@ -1,0 +1,23 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DBUILD_MODULE_Draw=OFF \
+	-DBUILD_MODULE_ApplicationFramework=ON \
+	-DUSE_FFMPEG=OFF \
+	-DUSE_FREEIMAGE=OFF \
+	-DUSE_RAPIDJSON=OFF \
+	-DUSE_TBB=OFF \
+	-DUSE_TCL=OFF \
+	-DUSE_TK=OFF \
+	-DUSE_VTK=OFF
+cmake --build build
+DESTDIR="$1" cmake --install build
+for license in LICENSE_LGPL_21.txt LICENSE_LGPL_21; do
+	if [ -f "$license" ]; then
+		install -Dm644 "$license" "$1/usr/share/licenses/opencascade/$license"
+		break
+	fi
+done

@@ -1,0 +1,36 @@
+diff --git a/src/spicelib/parser/inpgmod.c b/src/spicelib/parser/inpgmod.c
+--- a/src/spicelib/parser/inpgmod.c
++++ b/src/spicelib/parser/inpgmod.c
+@@ -174,18 +174,24 @@ create_model(CKTcircuit *ckt, INPmodel *modtmp, INPtables *tab)
+                 }
+             } else {
+
+-                double dval;
++
+                 /* want only the parameter names in output - not the values */
+                 errno = 0;    /* To distinguish success/failure after call */
+-                dval = strtod(parm, &endptr);
+-                /* Check for various possible errors */
+-                if ((errno == ERANGE && dval == HUGE_VAL) || errno != 0) {
+-                    perror("strtod");
+-                    controlled_exit(EXIT_FAILURE);
++                (void)strtod(parm, &endptr);
++                /* Check whether parsing happened. */
++                if (endptr == parm) {
++                    if ((errno == EINVAL) || (errno == 0)) {
++                        /* It was no number; it is really a string. */
++                        err = INPerrCat(err,
++                                        tprintf("unrecognized parameter (%s) - ignored",
++                                                parm));
++                    } else {
++                        perror("strtod");
++                        controlled_exit(EXIT_FAILURE);
++                    }
+                 }
+-                if (endptr == parm) /* it was no number - it is really a string */
+-                    err = INPerrCat(err,
+-                                    tprintf("unrecognized parameter (%s) - ignored",
+-                                            parm));
+             }
+         }
+         FREE(parm);

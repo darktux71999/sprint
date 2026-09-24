@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+autoreconf -fiv
+
+./configure \
+	--prefix=/usr
+
+make
+make DESTDIR="$1" install
+
+install -Dm644 jbigkit.pc "$1/usr/lib/pkgconfig/jbigkit.pc"
+install -Dm644 jbigkit85.pc "$1/usr/lib/pkgconfig/jbigkit85.pc"
+install -Dm644 COPYING "$1/usr/share/licenses/jbigkit/COPYING"

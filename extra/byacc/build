@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+./configure \
+	--prefix=/usr \
+	--mandir=/usr/share/man \
+	--program-transform='s,^,b,'
+
+make
+make DESTDIR="$1" install
+
+ln -sf byacc "$1/usr/bin/yacc"
+ln -sf byacc.1 "$1/usr/share/man/man1/yacc.1"

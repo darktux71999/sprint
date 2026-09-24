@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+./configure \
+	--prefix=/usr \
+	--disable-valadoc
+
+make
+make DESTDIR="$1" install
+
+install -Dm644 COPYING "$1/usr/share/licenses/vala/COPYING"

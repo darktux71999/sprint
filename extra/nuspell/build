@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DBUILD_SHARED_LIBS=ON \
+	-DBUILD_TESTING=OFF \
+	-DBUILD_DOCS=OFF
+cmake --build build
+DESTDIR="$1" cmake --install build
+for license in COPYING LICENSE; do
+	if [ -f "$license" ]; then
+		install -Dm644 "$license" "$1/usr/share/licenses/nuspell/$license"
+		break
+	fi
+done

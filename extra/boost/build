@@ -1,0 +1,41 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+./bootstrap.sh \
+	--prefix="$DESTDIR/usr" \
+	--with-toolset=clang
+
+cat > "$PWD/clang++-musl" <<EOF
+#!/bin/sh
+exec "${CXX:-c++}" "\$@" -target x86_64-pc-linux-musl
+EOF
+chmod +x "$PWD/clang++-musl"
+
+cat > user-config.jam <<EOF
+using clang : : $PWD/clang++-musl : <cxxflags>"${CXXFLAGS:-}" <linkflags>"${LDFLAGS:-}" <warnings-as-errors>"off" ;
+EOF
+
+BOOST_JOBS="${BOOST_JOBS:-4}"
+B2_PREFIX="$DESTDIR/usr"
+B2_ARGS="\
+	-j$BOOST_JOBS \
+	--user-config=$PWD/user-config.jam \
+	--prefix=$B2_PREFIX \
+	release \
+	architecture=x86 \
+	abi=sysv \
+	toolset=clang \
+	threading=multi \
+	debug-symbols=off \
+	runtime-link=shared \
+	link=shared \
+	--layout=system \
+	--without-mpi \
+	--without-graph_parallel \
+	--without-python"
+
+./b2 $B2_ARGS
+./b2 $B2_ARGS install
+
+install -Dm755 tools/build/src/engine/b2 "$DESTDIR/usr/bin/b2"

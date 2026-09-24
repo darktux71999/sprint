@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	--libexecdir=/usr/lib \
+	-Dbuildtype=release \
+	-Ddbus-srv-user=_geoclue \
+	-D3g-source=false \
+	-Dcdma-source=false \
+	-Dgtk-doc=false \
+	-Dintrospection=true \
+	-Dmodem-gps-source=false \
+	-Dvapi=true
+samu -C build
+DESTDIR="$1" samu -C build install
+rm -rf "$1/usr/share/doc"

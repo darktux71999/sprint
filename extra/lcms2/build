@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+meson setup build \
+	--prefix=/usr \
+	-Djpeg=enabled \
+	-Dtiff=enabled \
+	-Dutils=true \
+	-Dtests=disabled
+
+samu -C build
+DESTDIR="$1" samu -C build install
+
+install -Dm644 LICENSE "$1/usr/share/licenses/lcms2/LICENSE"
