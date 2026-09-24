@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+./configure --prefix=/usr
+make
+make DESTDIR="$1" install
+install -Dm644 COPYING.LIB "$1/usr/share/licenses/libunistring/COPYING.LIB"

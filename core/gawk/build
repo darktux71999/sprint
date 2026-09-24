@@ -1,0 +1,9 @@
+#!/bin/sh -e
+
+./configure \
+	--prefix=/usr \
+	--disable-nls \
+	--disable-pma
+make
+make DESTDIR="$1" install
+install -Dm644 COPYING "$1/usr/share/licenses/gawk/COPYING"

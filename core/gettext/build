@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+gt_cv_func_printf_posix=yes \
+./configure \
+	--prefix=/usr \
+	--enable-threads=posix \
+	--disable-java \
+	--disable-static
+make
+make DESTDIR="$1" install
+rm -rf "$1/usr/share/doc"
+install -Dm644 COPYING "$1/usr/share/licenses/gettext/COPYING"
