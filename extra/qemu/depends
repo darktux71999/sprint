@@ -7,6 +7,7 @@ libaio
 libcap
 libseccomp
 libslirp
+libxkbcommon
 linux-headers
 meson make
 pixman
@@ -14,4 +15,5 @@ pkgconf make
 python make
 samurai make
 sdl2
+xkeyboard-config
 zlib

@@ -36,7 +36,7 @@ meson setup \
     -Dxinerama=yes \
     -Dprint_backends=file,lpr \
     -Dcolord=no \
-    -Dintrospection=false \
+	-Dintrospection=true \
     -Ddemos=false \
     -Dexamples=false \
     -Dtests=false \

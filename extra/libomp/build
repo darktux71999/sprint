@@ -13,6 +13,3 @@ cmake -B build -G Ninja -Wno-dev \
 
 cmake --build build
 cmake --install build
-
-# Create symlinks
-ln -sf "libomp.so.$(cat ../llvm-known-version 2>/dev/null || echo 1)" "$1/usr/lib/libomp.so" 2>/dev/null || true

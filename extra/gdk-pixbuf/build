@@ -11,8 +11,9 @@ meson setup \
     -Djpeg=enabled \
     -Dpng=enabled \
     -Dtiff=disabled \
-    -Dgtk_doc=false \
-    -Dman=false \
+	-Dgtk_doc=false \
+	-Dintrospection=enabled \
+	-Dman=false \
     -Dgio_sniffing=false \
     -Dtests=false \
     -Dinstalled_tests=false \

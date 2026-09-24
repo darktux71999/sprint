@@ -1,4 +1,5 @@
 glib
+gobject-introspection make
 libX11
 libjpeg-turbo
 libpng

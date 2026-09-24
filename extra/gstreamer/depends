@@ -1,5 +1,6 @@
 bison make
 glib
+gobject-introspection make
 libcap
 meson make
 samurai make
