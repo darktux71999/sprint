@@ -20,9 +20,8 @@ meson setup \
     -Dgallium-va="${va_enabled:-true}" \
     -Dglvnd=false  \
     -Dvideo-codecs=vc1dec,h264dec,h264enc,h265dec,h265enc \
-    -Dvulkan-drivers='' \
+    -Dvulkan-drivers=nouveau \
     output
 
 ninja -C output
 ninja -C output install
-

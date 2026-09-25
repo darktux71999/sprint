@@ -2,3 +2,4 @@ git+https://github.com/X11Libre/xf86-video-nouveau#b18a89c78877f145d92c219cc987c
 patches/rootless_modesetting.patch
 patches/kepler-defaults.patch
 
+files/20-gpu.conf

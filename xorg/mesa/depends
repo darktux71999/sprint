@@ -19,7 +19,11 @@ meson         make
 pkgconf       make
 python-mako   make
 python-yaml   make
+rust          make
+rust-bindgen  make
 spirv-llvm-translator make
+vulkan-headers make
+vulkan-loader
 xkbcomp
 xorgproto
 zlib

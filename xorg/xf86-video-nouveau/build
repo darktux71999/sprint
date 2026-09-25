@@ -17,3 +17,5 @@ NOCONFIGURE=1 ./autogen.sh
 
 make
 make install
+
+install -Dm644 20-gpu.conf "$1/etc/X11/xorg.conf.d/20-gpu.conf"
