@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+export CFLAGS="$CFLAGS -O3 -DNDEBUG"
+
+./autogen.sh
+./configure \
+    --prefix=/usr \
+    --enable-thorvg \
+    --enable-release
+make
+make DESTDIR="$1" install

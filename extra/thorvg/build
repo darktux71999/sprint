@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+meson setup output \
+    -Dprefix=/usr \
+    -Dengines=cpu \
+    -Dloaders=lottie \
+    -Dbindings=capi \
+    -Dextra=lottie_exp \
+    -Dtests=false
+
+ninja -C output
+ninja -C output install
