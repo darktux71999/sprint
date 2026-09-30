@@ -1,0 +1,40 @@
+Backport of https://github.com/llvm/llvm-project/pull/199691 (upstream
+commits a027f67b3ef76e04e7150730e86101791d385274 and
+f811c7054289b5402f7dc3f234a31c8f6c65f6ab) fixing
+https://github.com/llvm/llvm-project/issues/199224:
+
+After 782bf6aff6ba ("x86: fix musttail sibcall miscompilation", present
+in release/22.x as 0f73e77781a2), a musttail call with matching calling
+convention was always treated as a sibling call, which skips the stores
+of outgoing stack arguments. Any argument passed on the stack was
+silently dropped, e.g. the 7th argument of a musttail tailcc call.
+
+This miscompiles WebKit/Skia raster pipelines (SkRasterPipeline_opts.h
+and skcms use [[clang::musttail]] for every pipeline stage) and
+JavaScriptCore, producing wrong rendering results or crashes.
+
+Only treat musttail as a sibling call when every argument is in a
+register; otherwise full tail-call lowering must run to populate the
+outgoing stack slots. The upstream fix was restructured against a newer
+LowerCall; this is the equivalent change for the release/22.x code
+layout, with the all_of-based condition spelled as a plain loop.
+--- a/llvm/lib/Target/X86/X86ISelLoweringCall.cpp
++++ b/llvm/lib/Target/X86/X86ISelLoweringCall.cpp
+@@ -2143,6 +2143,16 @@
+                                                   IsCalleePopSRet);
+ 
+-    if (!IsMustTail) {
++    if (IsMustTail) {
++      // Treat musttail as a sibcall only when every argument is in registers;
++      // otherwise full tail-call lowering must run to populate the outgoing
++      // stack slots (llvm/llvm-project#199224).
++      for (const CCValAssign &VA : ArgLocs) {
++        if (!VA.isRegLoc()) {
++          IsSibcall = false;
++          break;
++        }
++      }
++    } else {
+       isTailCall = IsSibcall;
+       IsSibcall = IsSibcall && !ShouldGuaranteeTCO;
+     }

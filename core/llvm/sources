@@ -24,5 +24,6 @@ patches/0024-Get-rid-of-spurious-trailing-space-in-__clang_versio.patch
 patches/0025-clang-implicitly-include-stdc-predef.h.patch
 patches/0027-fix-scan-build.patch
 patches/0028-libcxx-default-to-type-2.patch
+patches/0029-x86-fix-musttail-miscompilation-with-stack-args.patch
 files/c89
 files/c99
