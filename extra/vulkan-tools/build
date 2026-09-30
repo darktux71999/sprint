@@ -1,0 +1,20 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+cmake -B build -G Ninja \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DVULKAN_HEADERS_INSTALL_DIR=/usr \
+    -DBUILD_CUBE=OFF \
+    -DBUILD_VULKANINFO=ON \
+    -DBUILD_WSI_XCB_SUPPORT=OFF \
+    -DBUILD_WSI_XLIB_SUPPORT=OFF \
+    -DBUILD_WSI_WAYLAND_SUPPORT=OFF \
+    -DAPPLICATIONS_WAYLAND=OFF \
+    -DAPPLICATIONS_XCB=OFF
+
+cmake --build build
+cmake --install build
+
+install -Dm644 LICENSE.txt "$1/usr/share/licenses/vulkan-tools/LICENSE.txt"

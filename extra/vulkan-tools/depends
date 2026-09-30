@@ -1,0 +1,7 @@
+cmake make
+ninja make
+pkgconf make
+python make
+vulkan-headers make
+vulkan-loader
+linux-headers make
