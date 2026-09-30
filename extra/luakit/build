@@ -1,0 +1,9 @@
+#!/bin/sh -e
+
+make PREFIX=/usr USE_LUAJIT=1 DEVELOPMENT_PATHS=0
+make PREFIX=/usr USE_LUAJIT=1 DEVELOPMENT_PATHS=0 DESTDIR="$1" install
+
+rm -rf "$1/usr/share/pixmaps"
+install -Dm644 extras/luakit.png "$1/usr/share/icons/hicolor/64x64/apps/luakit.png"
+install -Dm644 extras/luakit.svg "$1/usr/share/icons/hicolor/scalable/apps/luakit.svg"
+install -Dm644 COPYING.GPLv3 "$1/usr/share/licenses/luakit/COPYING.GPLv3"

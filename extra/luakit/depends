@@ -1,0 +1,10 @@
+glib
+gstreamer
+gtk+3
+luafilesystem
+luajit
+luasocket
+make make
+pkgconf make
+sqlite
+webkitgtk

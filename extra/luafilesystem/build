@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+for patch in *.patch; do
+	patch -p1 < "$patch"
+done
+
+make CC=cc PREFIX=/usr LUA_INC=-I/usr/include/luajit-2.1
+make CC=cc PREFIX=/usr DESTDIR="$1" install
+
+install -Dm644 LICENSE "$1/usr/share/licenses/luafilesystem/LICENSE"
