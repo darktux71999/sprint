@@ -1,0 +1,28 @@
+#!/bin/sh -e
+
+cc -shared -fPIC -O2 -o libc-compat.so libc-compat.c
+
+tar -xf apks/libgcc-15.2.0-r5.apk -C apks 2>/dev/null || true
+tar -xf "apks/libstdc++-15.2.0-r5.apk" -C apks 2>/dev/null || true
+
+base="$1/usr/lib/mc-runtime"
+
+mkdir -p "$base/shim" "$1/usr/bin"
+cp libc-compat.so "$base/shim/libc-compat.so"
+cp mc-runtime.env "$base/env"
+cp mc-runtime21.env "$base/env21"
+cp -R jre8 "$base/jre"
+cp -R jre21 "$base/jre21"
+cp -R apks/usr/lib/. "$base/shim/"
+
+cd "$base/shim"
+
+for l in libc.so.6 libm.so.6 libpthread.so.0 libdl.so.2 librt.so.1 libutil.so.1
+do
+	ln -sf libc-compat.so "$l"
+done
+
+ln -sf /lib/ld-musl-x86_64.so.1 ld-linux-x86-64.so.2
+
+ln -sf ../lib/mc-runtime/jre/bin/java "$1/usr/bin/java"
+ln -sf ../lib/mc-runtime/jre21/bin/java "$1/usr/bin/java21"

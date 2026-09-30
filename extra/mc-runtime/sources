@@ -1,0 +1,7 @@
+https://cdn.azul.com/zulu/bin/zulu8.96.0.205-ca-jre8.0.504-linux_musl_x64.tar.gz jre8
+https://cdn.azul.com/zulu/bin/zulu21.52.203-ca-jre21.0.12.1-linux_musl_x64.tar.gz jre21
+https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libgcc-15.2.0-r5.apk apks
+https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libstdc++-15.2.0-r5.apk apks
+libc-compat.c
+mc-runtime.env
+mc-runtime21.env
