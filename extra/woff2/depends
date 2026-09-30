@@ -1,4 +1,4 @@
 brotli
 cmake make
 pkgconf make
-samurai make
+ninja make

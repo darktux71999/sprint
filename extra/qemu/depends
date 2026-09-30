@@ -13,7 +13,7 @@ meson make
 pixman
 pkgconf make
 python make
-samurai make
+ninja make
 sdl2
 xkeyboard-config
 zlib

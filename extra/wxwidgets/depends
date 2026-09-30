@@ -13,7 +13,7 @@ libtiff
 mesa
 pcre2
 pkgconf make
-samurai make
+ninja make
 sdl2-compat
 webkitgtk
 xz

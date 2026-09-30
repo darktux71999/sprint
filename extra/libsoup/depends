@@ -4,6 +4,6 @@ libpsl
 libxml2
 meson make
 pkgconf make
-samurai make
+ninja make
 sqlite
 zlib

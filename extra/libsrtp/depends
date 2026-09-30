@@ -1,4 +1,4 @@
 meson make
 openssl
 pkgconf make
-samurai make
+ninja make

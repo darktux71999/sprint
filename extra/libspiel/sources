@@ -1,1 +1,4 @@
 https://github.com/project-spiel/libspiel/archive/refs/tags/SPIEL_1_0_4.tar.gz
+patches/71.patch
+patches/8214e2dae461c67801cbf8a6a27038c0d7bc7061.patch
+patches/fix-build-order.patch

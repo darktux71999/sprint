@@ -3,4 +3,4 @@ glib
 gobject-introspection make
 libcap
 meson make
-samurai make
+ninja make

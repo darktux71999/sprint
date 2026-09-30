@@ -1,11 +1,13 @@
 #!/bin/sh -e
 
+patch -p1 < export-dynamic.patch
+
 meson setup build \
 	--prefix=/usr \
 	--libexecdir=/usr/lib \
 	-Dbuildtype=release \
 	-Dintrospection=enabled \
 	-Dvapi=enabled
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 install -Dm644 COPYING "$1/usr/share/licenses/libgudev/COPYING"

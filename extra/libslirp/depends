@@ -2,4 +2,4 @@ glib
 linux-headers
 meson make
 pkgconf make
-samurai make
+ninja make

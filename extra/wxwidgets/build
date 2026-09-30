@@ -21,8 +21,8 @@ cmake -B build -G Ninja \
 	-DwxUSE_ZLIB=sys \
 	-DOPENGL_opengl_LIBRARY=/usr/lib/libGL.so
 
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 
 install -Dm644 docs/licence.txt "$1/usr/share/licenses/wxwidgets/LICENSE"
 rm -rf "$1/usr/share/doc"

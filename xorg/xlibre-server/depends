@@ -21,7 +21,7 @@ meson make
 openssl
 pixman
 pkgconf make
-samurai make
+ninja make
 xcb-util
 xcb-util-wm
 xkeyboard-config

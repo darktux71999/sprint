@@ -14,7 +14,7 @@ opencascade
 poppler
 protobuf
 python
-samurai make
+ninja make
 swig make
 unixodbc
 wxwidgets

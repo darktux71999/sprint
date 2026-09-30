@@ -12,5 +12,5 @@ mesa
 nss
 openjpeg
 pkgconf make
-samurai make
+ninja make
 zlib

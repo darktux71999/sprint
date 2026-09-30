@@ -2,5 +2,5 @@ cmake    make
 libjpeg-turbo
 libpng
 pkgconf  make
-samurai  make
+ninja  make
 sdl3

@@ -5,6 +5,6 @@ libxml2
 llvm
 ncurses
 pkgconf make
-samurai make
+ninja make
 xz
 zlib

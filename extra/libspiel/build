@@ -1,13 +1,17 @@
 #!/bin/sh -e
 
+for patch in *.patch; do
+	patch -p1 < "$patch"
+done
+
 meson setup build \
 	--prefix=/usr \
 	--libexecdir=/usr/lib \
 	-Dbuildtype=release \
 	-Ddocs=false \
 	-Dtests=false
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 for license in LICENSE COPYING; do
 	if [ -f "$license" ]; then
 		install -Dm644 "$license" "$1/usr/share/licenses/libspiel/$license"

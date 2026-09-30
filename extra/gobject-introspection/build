@@ -8,7 +8,7 @@ meson setup build \
 	-Dbuild_introspection_data=true \
 	-Dtests=false
 
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 
 rm -rf "$1/usr/share/doc"

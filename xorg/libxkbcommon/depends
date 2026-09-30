@@ -2,5 +2,5 @@ bison   make
 libxcb
 meson   make
 pkgconf make
-samurai make
+ninja make
 xkeyboard-config

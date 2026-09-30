@@ -10,7 +10,7 @@ cmake -B build -G Ninja \
     -DBUILD_CXX=OFF
 
 # 2. Compilación
-samu -C build
+ninja -C build
 
 # 3. Instalación
-DESTDIR="$1" samu -C build install
+DESTDIR="$1" ninja -C build install

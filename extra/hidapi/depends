@@ -1,4 +1,4 @@
 libusb
 libudev-zero
 cmake make
-samurai make
+ninja make

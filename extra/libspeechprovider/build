@@ -6,8 +6,8 @@ meson setup build \
 	-Dbuildtype=release \
 	-Ddocs=false \
 	-Dtests=false
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 for license in LICENSE COPYING; do
 	if [ -f "$license" ]; then
 		install -Dm644 "$license" "$1/usr/share/licenses/libspeechprovider/$license"

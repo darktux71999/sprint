@@ -4,4 +4,4 @@ highway
 lcms2
 libpng
 pkgconf make
-samurai make
+ninja make

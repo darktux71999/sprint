@@ -18,5 +18,5 @@ meson make
 opus
 orc
 pango
-samurai make
+ninja make
 zlib

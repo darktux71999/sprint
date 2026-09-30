@@ -7,7 +7,7 @@ meson setup build \
 	-Dutils=true \
 	-Dtests=disabled
 
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 
 install -Dm644 LICENSE "$1/usr/share/licenses/lcms2/LICENSE"

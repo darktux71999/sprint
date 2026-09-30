@@ -5,6 +5,6 @@ meson setup build \
 	--libexecdir=/usr/lib \
 	-Dbuildtype=release \
 	-Ddefault_library=shared
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 install -Dm644 COPYING "$1/usr/share/licenses/libwpe/COPYING"

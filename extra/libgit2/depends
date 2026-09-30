@@ -4,5 +4,5 @@ llhttp
 openssl
 pcre2
 pkgconf make
-samurai make
+ninja make
 zlib

@@ -2,5 +2,5 @@ libX11  make
 meson   make
 pkgconf make
 python  make
-samurai make
+ninja make
 xkbcomp

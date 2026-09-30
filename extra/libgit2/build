@@ -12,7 +12,7 @@ cmake -B build -G Ninja \
 	-DUSE_HTTP_PARSER=llhttp \
 	-DUSE_HTTPS=OpenSSL
 
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 
 rm -rf "$1/usr/share/doc"

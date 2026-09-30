@@ -6,7 +6,7 @@ libxcb
 meson   make 
 pixman
 pkgconf make 
-samurai make 
+ninja make
 uthash  make 
 xcb-util
 xcb-util-image

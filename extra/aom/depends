@@ -2,4 +2,4 @@ cmake make
 linux-headers
 nasm make
 perl make
-samurai make
+ninja make

@@ -11,6 +11,6 @@ meson setup build \
 	-Dsysprofd=none \
 	-Dtests=false \
 	-Dtools=false
-samu -C build
-DESTDIR="$1" samu -C build install
+ninja -C build
+DESTDIR="$1" ninja -C build install
 install -Dm644 src/libsysprof-capture/COPYING "$1/usr/share/licenses/sysprof-capture/COPYING"

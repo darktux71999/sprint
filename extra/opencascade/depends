@@ -3,4 +3,4 @@ freetype-harfbuzz
 libXi
 libXmu
 mesa
-samurai make
+ninja make

@@ -1,4 +1,4 @@
 curl
 jansson
 meson make
-samurai make
+ninja make
