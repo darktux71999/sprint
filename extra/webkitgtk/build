@@ -4,7 +4,15 @@ export CFLAGS="${CFLAGS:-} -DNDEBUG"
 export CXXFLAGS="${CXXFLAGS:-} -DNDEBUG -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE -Wno-deprecated-declarations -Wno-deprecated-copy"
 
 LINKER="$(command -v ld.lld)"
+AR="$(command -v llvm-ar)"
+RANLIB="$(command -v llvm-ranlib)"
+NM="$(command -v llvm-nm)"
 JOBS="${KISS_JOBS:-8}"
+
+
+for patch in *.patch; do
+	patch -p1 < "$patch"
+done
 
 cmake -B build -G Ninja \
 	-DCMAKE_BUILD_TYPE=Release \
@@ -15,9 +23,9 @@ cmake -B build -G Ninja \
 	-DCMAKE_CXX_COMPILER=clang++ \
 	-DCMAKE_C_COMPILER_TARGET=x86_64-pc-linux-musl \
 	-DCMAKE_CXX_COMPILER_TARGET=x86_64-pc-linux-musl \
-	-DCMAKE_AR=llvm-ar \
-	-DCMAKE_RANLIB=llvm-ranlib \
-	-DCMAKE_NM=llvm-nm \
+	-DCMAKE_AR="$AR" \
+	-DCMAKE_RANLIB="$RANLIB" \
+	-DCMAKE_NM="$NM" \
 	-DCMAKE_LINKER="$LINKER" \
 	-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld \
 	-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld \
@@ -39,11 +47,10 @@ cmake -B build -G Ninja \
 	-DENABLE_X11_TARGET=ON \
 	-DENABLE_JIT=ON \
 	-DENABLE_C_LOOP=OFF \
-	-DENABLE_WEBASSEMBLY=ON \
-	-DLTO_MODE=thin
+	-DENABLE_WEBASSEMBLY=ON
 
-samu -j "$JOBS" -C build
-DESTDIR="$1" samu -j "$JOBS" -C build install
+ninja -j "$JOBS" -C build
+DESTDIR="$1" ninja -j "$JOBS" -C build install
 
 install -Dm644 Source/WebCore/LICENSE-APPLE "$1/usr/share/licenses/webkitgtk/LICENSE-APPLE"
 install -Dm644 Source/WebCore/LICENSE-LGPL-2.1 "$1/usr/share/licenses/webkitgtk/LICENSE-LGPL-2.1"

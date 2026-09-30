@@ -1,1 +1,12 @@
-https://webkitgtk.org/releases/webkitgtk-2.52.6.tar.xz
+https://webkitgtk.org/releases/webkitgtk-2.54.0.tar.xz
+patches/fortify.patch
+patches/le-check.patch
+patches/loong-hwcap.patch
+patches/loongarch-simdutf.patch
+patches/ppc64-simdutf.patch
+patches/reproducible.patch
+patches/riscv64-no-wasm.patch
+patches/silence.patch
+patches/skia-foritfy.patch
+patches/spiel-allow-sandbox.patch
+patches/webdriver-fix-release-log.patch
