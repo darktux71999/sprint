@@ -2,6 +2,12 @@
 
 export DESTDIR="$1"
 
+for patch in *.patch patches/*.patch; do
+    [ -f "$patch" ] || continue
+    echo "   aplicando: $patch"
+    patch -p1 < "$patch"
+done
+
 pkg-config --exists libva || va_enabled=false
 
 meson setup \
@@ -10,11 +16,12 @@ meson setup \
     -Dmandir=/usr/share/man \
     -Dlocalstatedir=/var \
     -Dbuildtype=release \
+    -Db_ndebug=false \
     -Dglx-read-only-text=true \
     -Dplatforms=x11 \
     -Dglx=auto \
     -Degl=enabled \
-    -Dgallium-drivers=nouveau \
+    -Dgallium-drivers=nouveau,zink \
     -Dvalgrind=false \
     -Dzstd=disabled \
     -Dgallium-va="${va_enabled:-true}" \

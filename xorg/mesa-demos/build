@@ -12,7 +12,7 @@ meson setup \
     -Dmandir=/usr/share/man \
     -Dlocalstatedir=/var \
     -Dbuildtype=release \
-    -Degl=disabled \
+    -Degl=enabled \
     -Dgles1=disabled \
     -Dgles2=disabled \
     -Dglut=disabled \
