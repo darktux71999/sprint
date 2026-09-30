@@ -1,0 +1,2 @@
+https://github.com/BurntSushi/ripgrep/archive/15.2.0.tar.gz
+patches/disable-jemalloc-musl.patch

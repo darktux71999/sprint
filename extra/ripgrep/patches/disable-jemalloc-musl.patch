@@ -1,0 +1,25 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -60,9 +60,6 @@
+ termcolor = "1.4.0"
+ textwrap = { version = "0.16.0", default-features = false }
+ 
+-[target.'cfg(all(target_env = "musl", target_pointer_width = "64"))'.dependencies.tikv-jemallocator]
+-version = "0.7.0"
+-
+ [dev-dependencies]
+ serde = "1.0.77"
+ serde_derive = "1.0.77"
+--- a/crates/core/main.rs
++++ b/crates/core/main.rs
+@@ -35,10 +35,6 @@
+ //
+ // Moreover, we only do this on 64-bit systems since jemalloc doesn't support
+ // i686.
+-#[cfg(all(target_env = "musl", target_pointer_width = "64"))]
+-#[global_allocator]
+-static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+-
+ /// Then, as it was, then again it will be.
+ fn main() -> ExitCode {
+     match run(flags::parse()) {
