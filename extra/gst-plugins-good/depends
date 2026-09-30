@@ -1,7 +1,20 @@
+bzip2
+cairo
+gdk-pixbuf
+gettext make
 glib
 gst-plugins-base
 gstreamer
+gtk+3
+lame
+libgcrypt
+libjpeg-turbo
+libpng
 libsoup
+libvpx
+libxml2
 meson make
+ninja make
+nasm make
 orc
 pkgconf make

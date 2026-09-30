@@ -4,11 +4,40 @@ meson setup build \
 	--prefix=/usr \
 	--libexecdir=/usr/lib \
 	-Dbuildtype=release \
-	-Dauto_features=disabled \
+	--auto-features=enabled \
+	-Ddefault_library=shared \
 	-Ddoc=disabled \
 	-Dexamples=disabled \
-	-Dtests=disabled
-samu -C build
-DESTDIR="$1" samu -C build install
+	-Dtests=disabled \
+	-Dhls-crypto=libgcrypt \
+	-Daalib=disabled \
+	-Damrnb=disabled \
+	-Damrwbdec=disabled \
+	-Ddirectsound=disabled \
+	-Ddv=disabled \
+	-Ddv1394=disabled \
+	-Dflac=disabled \
+	-Djack=disabled \
+	-Dlibcaca=disabled \
+	-Dmpg123=disabled \
+	-Doss=disabled \
+	-Doss4=disabled \
+	-Dosxaudio=disabled \
+	-Dosxvideo=disabled \
+	-Dpulse=disabled \
+	-Dqt5=disabled \
+	-Dqt6=disabled \
+	-Drpicamsrc=disabled \
+	-Dshout2=disabled \
+	-Dspeex=disabled \
+	-Dtaglib=disabled \
+	-Dtwolame=disabled \
+	-Dv4l2-gudev=disabled \
+	-Dv4l2-libv4l2=disabled \
+	-Dwaveform=disabled \
+	-Dwavpack=disabled \
+	-Dximagesrc=disabled
+ninja -C build
+DESTDIR="$1" ninja -C build install
 rm -rf "$1/usr/share/doc"
 install -Dm644 COPYING "$1/usr/share/licenses/gst-plugins-good/COPYING"
