@@ -14,6 +14,9 @@ Requisitos (una vez):
 - Kernel con CONFIG_CGROUPS=y y CONFIG_MEMCG=y.
 - cgroup2 montado; en /etc/fstab:
       cgroup2 /sys/fs/cgroup cgroup2 defaults 0 0
+- Como usuario normal: el hook cgroup-delegate.boot de sprint-config crea y
+  delega /sys/fs/cgroup/user en cada arranque. Sin el, corre cbuild como
+  root (o ejecuta a mano los chown que indica cbuild al fallar).
 
 Uso:
   cbuild [opciones] -- comando [args]

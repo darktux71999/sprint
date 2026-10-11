@@ -5,6 +5,8 @@ Configuración de sistema de Sprint: hooks de arranque y ajustes de kernel
 para Xeon E5-2640 v3, 8GB RAM, zram y HDD (sda).
 
 Instala:
+- /etc/rc.d/cgroup-delegate.boot           delega el controlador memory a
+                                          darktux (para cbuild sin root)
 - /etc/rc.d/cpu-governor.boot             gobernador schedutil
 - /etc/rc.d/keymap.boot                   teclado dvorak
 - /etc/rc.d/network.boot                  red estática eth0 + resolv.conf

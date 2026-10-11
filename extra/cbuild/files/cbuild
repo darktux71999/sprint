@@ -12,6 +12,9 @@
 #   -u PCT  descongelar bajo PCT% de high       default: 78
 #   -R MiB  reserva para el escritorio          default: 2560
 #   -F      congelar todo el grupo (default: solo el lanzador make/ninja)
+#
+# Como root usa /sys/fs/cgroup. Como usuario usa la delegacion
+# /sys/fs/cgroup/user (el paquete sprint-config la crea en el arranque).
 
 set -e
 
@@ -39,14 +42,30 @@ grep -q cgroup2 /proc/mounts 2>/dev/null || {
     exit 1
 }
 
+if [ -w /sys/fs/cgroup/cgroup.procs ]; then
+    base=/sys/fs/cgroup
+    echo +memory > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
+elif [ -w /sys/fs/cgroup/user ]; then
+    base=/sys/fs/cgroup/user
+    echo +memory > "$base/cgroup.subtree_control" 2>/dev/null || true
+else
+    me=${LOGNAME:-$USER}
+    echo "cbuild: sin permiso sobre cgroup2. Como root, una vez:" >&2
+    echo "    mkdir -p /sys/fs/cgroup/user" >&2
+    echo "    echo +memory > /sys/fs/cgroup/cgroup.subtree_control" >&2
+    echo "    chown $me:$me /sys/fs/cgroup/user \\" >&2
+    echo "        /sys/fs/cgroup/user/cgroup.procs \\" >&2
+    echo "        /sys/fs/cgroup/user/cgroup.subtree_control \\" >&2
+    echo "        /sys/fs/cgroup/user/cgroup.threads" >&2
+    exit 1
+fi
+
 total=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
 [ -n "$HighMiB" ] || HighMiB=$((total - reserve))
 [ -n "$MaxMiB" ] || MaxMiB=$((HighMiB + 768))
 [ "$MaxMiB" -gt "$total" ] && MaxMiB=$total
 
-CG=/sys/fs/cgroup/cbuild.$$
-
-echo +memory > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
+CG=$base/cbuild.$$
 mkdir "$CG" || { echo "cbuild: no pude crear $CG" >&2; exit 1; }
 
 if [ ! -f "$CG/memory.high" ]; then
@@ -62,7 +81,7 @@ if [ "$SwapMiB" -ge 0 ]; then
 fi
 echo 1 > "$CG/memory.oom.group" 2>/dev/null || true
 
-echo "cbuild: high=${HighMiB}M max=${MaxMiB}M swap=${SwapMiB}M (RAM total: ${total}M)" >&2
+echo "cbuild: high=${HighMiB}M max=${MaxMiB}M swap=${SwapMiB}M (RAM total: ${total}M, base: ${base})" >&2
 
 cmd= state=0
 cleanup() {

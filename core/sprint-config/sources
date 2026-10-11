@@ -1,3 +1,4 @@
+files/rc.d/cgroup-delegate.boot
 files/rc.d/cpu-governor.boot
 files/rc.d/io-sched.boot
 files/rc.d/keymap.boot
