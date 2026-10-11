@@ -1,0 +1,32 @@
+cbuild
+________________________________________________________________________________
+
+Ejecuta una compilacion dentro de un cgroup con presupuesto de memoria y un
+gobernador que congela el build cuando se acerca al limite, dejando que los
+jobs en curso terminen mientras se libera memoria.
+
+Objetivo: Xorg, zutty, el navegador y el resto del software interactivo viven
+en el cgroup raiz (sin tope) y no sufren. El build usa "lo que sobre", puede
+tirar de zram (compresion) y, al acercarse al umbral, deja de lanzar trabajos
+nuevos; si aun asi se pasa, el OOM actua SOLO dentro de su cgroup.
+
+Requisitos (una vez):
+- Kernel con CONFIG_CGROUPS=y y CONFIG_MEMCG=y.
+- cgroup2 montado; en /etc/fstab:
+      cgroup2 /sys/fs/cgroup cgroup2 defaults 0 0
+
+Uso:
+  cbuild [opciones] -- comando [args]
+
+  -H MiB  memory.high (estrangulamiento suave)  default: RAM - reserva
+  -M MiB  memory.max  (borde duro, OOM solo aqui) default: high + 768
+  -S MiB  memory.swap.max (zram para el build)  default: 4096
+  -s PCT  congelar al superar PCT%% de high     default: 100
+  -u PCT  descongelar bajo PCT%% de high        default: 78
+  -R MiB  reserva para el escritorio            default: 2560
+  -F      congelar todo el grupo (default: solo el lanzador)
+
+Ejemplos:
+  cbuild -- kiss build webkitgtk
+  cbuild -H 4608 -M 5376 -S 6144 -- make -j14
+  cbuild -F -- rustc ...        # pausa total del grupo al llegar al umbral

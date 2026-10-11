@@ -1,2 +1,2 @@
 #!/bin/sh
-exec earlyoom 2>&1
+exec earlyoom --prefer '^(cc1plus|cc1|clang|clang-[0-9]+|ld|ld\.lld|rustc|make|ninja)$' --avoid '^(init|runsvdir|Xorg|dwm|zutty|firefox|slstatus|picom|mksh|sh|cbuild)$' 2>&1

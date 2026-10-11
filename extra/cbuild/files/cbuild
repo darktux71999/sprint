@@ -1,0 +1,110 @@
+#!/bin/sh
+# cbuild - ejecuta un comando dentro de un cgroup con limite de memoria y un
+# gobernador que congela el build al acercarse al limite para proteger el
+# escritorio (Xorg, zutty, navegador). El build puede usar el resto y zram.
+#
+# uso: cbuild [opciones] -- COMANDO [ARG...]
+#
+#   -H MiB  memory.high (estrangula sin matar)  default: RAM - reserva
+#   -M MiB  memory.max  (borde duro; OOM solo aqui) default: high + 768
+#   -S MiB  memory.swap.max (zram permitido)    default: 4096 (0 sin swap, -1 sin tope)
+#   -s PCT  congelar al superar PCT% de high    default: 100 (0 desactiva)
+#   -u PCT  descongelar bajo PCT% de high       default: 78
+#   -R MiB  reserva para el escritorio          default: 2560
+#   -F      congelar todo el grupo (default: solo el lanzador make/ninja)
+
+set -e
+
+HighMiB= MaxMiB= SwapMiB=4096 frozen_pct=100 thaw_pct=78 reserve=2560 freeze_all=0
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        -H) HighMiB=$2; shift 2 ;;
+        -M) MaxMiB=$2; shift 2 ;;
+        -S) SwapMiB=$2; shift 2 ;;
+        -s) frozen_pct=$2; shift 2 ;;
+        -u) thaw_pct=$2; shift 2 ;;
+        -R) reserve=$2; shift 2 ;;
+        -F) freeze_all=1; shift ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+[ $# -gt 0 ] || { echo "uso: cbuild [opciones] -- comando [args]" >&2; exit 2; }
+
+grep -q cgroup2 /proc/mounts 2>/dev/null || {
+    echo "cbuild: cgroup2 no esta montado. Agrega a /etc/fstab:" >&2
+    echo "    cgroup2 /sys/fs/cgroup cgroup2 defaults 0 0" >&2
+    exit 1
+}
+
+total=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
+[ -n "$HighMiB" ] || HighMiB=$((total - reserve))
+[ -n "$MaxMiB" ] || MaxMiB=$((HighMiB + 768))
+[ "$MaxMiB" -gt "$total" ] && MaxMiB=$total
+
+CG=/sys/fs/cgroup/cbuild.$$
+
+echo +memory > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
+mkdir "$CG" || { echo "cbuild: no pude crear $CG" >&2; exit 1; }
+
+if [ ! -f "$CG/memory.high" ]; then
+    rmdir "$CG" 2>/dev/null || true
+    echo "cbuild: falta el controlador memory (CONFIG_MEMCG=y en el kernel)" >&2
+    exit 1
+fi
+
+echo $((HighMiB * 1024 * 1024)) > "$CG/memory.high"
+echo $((MaxMiB * 1024 * 1024)) > "$CG/memory.max"
+if [ "$SwapMiB" -ge 0 ]; then
+    echo $((SwapMiB * 1024 * 1024)) > "$CG/memory.swap.max" 2>/dev/null || true
+fi
+echo 1 > "$CG/memory.oom.group" 2>/dev/null || true
+
+echo "cbuild: high=${HighMiB}M max=${MaxMiB}M swap=${SwapMiB}M (RAM total: ${total}M)" >&2
+
+cmd= state=0
+cleanup() {
+    [ "$state" -eq 1 ] && {
+        echo 0 > "$CG/cgroup.freeze" 2>/dev/null || true
+        [ -n "$cmd" ] && kill -CONT "$cmd" 2>/dev/null || true
+    }
+    rmdir "$CG" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+echo $$ > "$CG/cgroup.procs"
+"$@" &
+cmd=$!
+
+FROZEN_AT=$((HighMiB * frozen_pct * 1024 * 1024 / 100))
+THAW_AT=$((HighMiB * thaw_pct * 1024 * 1024 / 100))
+
+while kill -0 "$cmd" 2>/dev/null; do
+    cur=$(cat "$CG/memory.current" 2>/dev/null) || break
+
+    if [ "$frozen_pct" -gt 0 ] && [ "$state" -eq 0 ] && [ "$cur" -gt "$FROZEN_AT" ]; then
+        if [ "$freeze_all" = 1 ]; then
+            echo 1 > "$CG/cgroup.freeze" 2>/dev/null || true
+        else
+            kill -STOP "$cmd" 2>/dev/null || true
+        fi
+        state=1
+        printf 'cbuild: congelado con %s MiB en uso (los jobs en curso terminan; sin lanzar nuevos)\n' "$((cur / 1048576))" >&2
+    elif [ "$state" -eq 1 ] && [ "$cur" -lt "$THAW_AT" ]; then
+        if [ "$freeze_all" = 1 ]; then
+            echo 0 > "$CG/cgroup.freeze" 2>/dev/null || true
+        else
+            kill -CONT "$cmd" 2>/dev/null || true
+        fi
+        state=0
+        printf 'cbuild: reanudado con %s MiB en uso\n' "$((cur / 1048576))" >&2
+    fi
+
+    sleep 1
+done
+
+rc=0
+wait "$cmd" || rc=$?
+exit $rc
