@@ -14,8 +14,7 @@ sprint/
 ├── extra/      # Usuario, herramientas, libs
 ├── xorg/       # X server, drivers, X11
 ├── test/       # Experimental
-├── python/     # Paquetes y librerías Python
-└── etc/        # Configuración local del sistema (rc.d)
+└── python/     # Paquetes y librerías Python
 ```
 
 Los lenguajes solo se separan en su propio directorio cuando acumulan

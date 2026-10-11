@@ -1,0 +1,6 @@
+files/rc.d/cpu-governor.boot
+files/rc.d/io-sched.boot
+files/rc.d/keymap.boot
+files/rc.d/network.boot
+files/rc.d/zram.boot
+files/sysctl.d/99-sprint-optimize.conf

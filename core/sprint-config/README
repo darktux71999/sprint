@@ -1,0 +1,17 @@
+sprint-config
+________________________________________________________________________________
+
+Configuración de sistema de Sprint: hooks de arranque y ajustes de kernel
+para Xeon E5-2640 v3, 8GB RAM, zram y HDD (sda).
+
+Instala:
+- /etc/rc.d/cpu-governor.boot             gobernador schedutil
+- /etc/rc.d/keymap.boot                   teclado dvorak
+- /etc/rc.d/network.boot                  red estática eth0 + resolv.conf
+- /etc/rc.d/zram.boot                     zram 6G zstd (pri=100) + 4G lz4 (pri=99)
+- /etc/rc.d/io-sched.boot                 bfq en sda (HDD)
+- /etc/sysctl.d/99-sprint-optimize.conf   ajustes de memoria, IO y red
+
+Los archivos bajo /etc quedan gestionados por KISS (etcsums): al actualizar,
+si editaste uno, KISS guardará la versión del paquete como .new para que la
+fusión sea manual.
