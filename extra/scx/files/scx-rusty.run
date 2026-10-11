@@ -1,0 +1,2 @@
+#!/bin/sh
+exec scx_rusty 2>&1

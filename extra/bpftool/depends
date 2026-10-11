@@ -1,0 +1,6 @@
+libelf
+zlib
+libcap
+linux-headers make
+python make
+llvm make

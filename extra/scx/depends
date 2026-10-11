@@ -1,0 +1,5 @@
+libelf
+zlib
+linux-headers make
+llvm make
+rust make

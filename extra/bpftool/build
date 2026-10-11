@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+cd src
+
+make LLVM=1 STRIP=/bin/true V=1 \
+    prefix=/usr sbindir=/usr/bin libdir=/usr/lib mandir=/usr/share/man
+
+make DESTDIR="$1" LLVM=1 STRIP=/bin/true V=1 \
+    prefix=/usr sbindir=/usr/bin libdir=/usr/lib mandir=/usr/share/man \
+    install
