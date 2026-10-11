@@ -16,29 +16,37 @@ log() {
 }
 
 get_temp() {
-    cat $TEMP_GLOB 2>/dev/null | head -n 1
+    for f in $TEMP_GLOB; do
+        [ -r "$f" ] && { cat "$f"; return; }
+    done
 }
 
+# El pstate activo va marcado con '*' y el valor termina en ':'.
 get_current_pstate() {
-    awk '/^\*/ {print $1}' "$PSTATE_FILE" 2>/dev/null | tr -d '*'
+    awk '/^\*/ {sub(/^\*[[:space:]]*/, ""); sub(/:.*/, ""); print; exit}' "$PSTATE_FILE" 2>/dev/null
 }
 
 set_pstate() {
     state="$1"
-    if [ "$(get_current_pstate)" != "$state" ]; then
-        echo "$state" > "$PSTATE_FILE" 2>/dev/null
+    [ "$(get_current_pstate)" = "$state" ] && return
+
+    if echo "$state" > "$PSTATE_FILE" 2>/dev/null; then
         log "$(date '+%Y-%m-%d %H:%M:%S') - pstate $state (temp: $temp)"
+    else
+        log "$(date '+%Y-%m-%d %H:%M:%S') - error: no se pudo escribir pstate $state"
     fi
 }
 
 while true; do
     temp=$(get_temp)
 
-    if [ -z "$temp" ]; then
-        log "error: no se pudo leer la temperatura"
-        sleep "$INTERVAL"
-        continue
-    fi
+    case $temp in
+        ''|*[!0-9]*)
+            log "error: no se pudo leer la temperatura"
+            sleep "$INTERVAL"
+            continue
+            ;;
+    esac
 
     if [ "$temp" -lt "$TEMP_LOW" ]; then
         # Frio: alto rendimiento.
