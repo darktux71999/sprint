@@ -4,3 +4,5 @@ files/rc.d/keymap.boot
 files/rc.d/network.boot
 files/rc.d/zram.boot
 files/sysctl.d/99-sprint-optimize.conf
+files/opt/mdev/disk-optimize.sh
+files/opt/mdev/nvme-optimize.sh

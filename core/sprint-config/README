@@ -11,6 +11,9 @@ Instala:
 - /etc/rc.d/zram.boot                     zram 6G zstd (pri=100) + 4G lz4 (pri=99)
 - /etc/rc.d/io-sched.boot                 bfq en sda (HDD)
 - /etc/sysctl.d/99-sprint-optimize.conf   ajustes de memoria, IO y red
+- /opt/mdev/disk-optimize.sh              helper de la regla mdev sd[a-z]:
+                                          bfq en discos rotacionales
+- /opt/mdev/nvme-optimize.sh              helper de la regla mdev nvme*
 
 Los archivos bajo /etc quedan gestionados por KISS (etcsums): al actualizar,
 si editaste uno, KISS guardará la versión del paquete como .new para que la

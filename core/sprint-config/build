@@ -8,3 +8,6 @@ for f in cpu-governor.boot io-sched.boot keymap.boot network.boot zram.boot; do
 done
 
 install -Dm644 99-sprint-optimize.conf "$1/etc/sysctl.d/99-sprint-optimize.conf"
+
+install -Dm755 disk-optimize.sh "$1/opt/mdev/disk-optimize.sh"
+install -Dm755 nvme-optimize.sh "$1/opt/mdev/nvme-optimize.sh"
