@@ -78,15 +78,17 @@ make DESTDIR="$1" install
 ### Checksums
 - **Blake3** 33 bytes (66 hex chars)
 - `kiss checksum paquete` para regenerar
+- Paquetes con fuentes solo git no llevan archivo `checksums`
 - **NO SHA256** (rechazado desde 2024)
 
 ## KISS_PATH
 
 ```sh
-export KISS_PATH="$HOME/infra/package-repos/sprint/core"
-export KISS_PATH="$KISS_PATH:$HOME/infra/package-repos/sprint/extra"
-export KISS_PATH="$KISS_PATH:$HOME/infra/package-repos/sprint/xorg"
-export KISS_PATH="$KISS_PATH:$HOME/infra/package-repos/sprint/test"
+export KISS_PATH="$HOME/proyectos/sprint/core"
+export KISS_PATH="$KISS_PATH:$HOME/proyectos/sprint/extra"
+export KISS_PATH="$KISS_PATH:$HOME/proyectos/sprint/xorg"
+export KISS_PATH="$KISS_PATH:$HOME/proyectos/sprint/test"
+export KISS_PATH="$KISS_PATH:$HOME/proyectos/sprint/python"
 ```
 
 Prioridad: izquierda > derecha. `kiss search` sigue el orden.

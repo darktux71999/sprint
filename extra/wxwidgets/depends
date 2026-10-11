@@ -8,13 +8,13 @@ libjpeg-turbo
 libnotify
 libpng
 libsecret
-libsm
+libSM
 libtiff
 mesa
 pcre2
 pkgconf make
 ninja make
-sdl2-compat
+sdl2
 webkitgtk
 xz
 zlib

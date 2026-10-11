@@ -1,1 +1,6 @@
-libnvme json-c zlib meson ninja pkgconf
+libnvme
+json-c
+zlib
+meson make
+ninja make
+pkgconf make

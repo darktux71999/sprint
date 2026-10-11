@@ -1,1 +1,6 @@
-json-c meson ninja pkgconf openssl zlib
+json-c
+openssl
+zlib
+meson make
+ninja make
+pkgconf make

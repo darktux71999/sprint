@@ -1,1 +1,2 @@
-cmake ninja
+cmake make
+ninja make
