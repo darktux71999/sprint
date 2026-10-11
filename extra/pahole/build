@@ -1,0 +1,17 @@
+#!/bin/sh -e
+
+patch -p1 < llvm-globalmerge.patch
+patch -p1 < speed-up-realloc.patch
+
+export CFLAGS="$CFLAGS -I/usr/include/bpf/uapi"
+export CXXFLAGS="$CXXFLAGS -I/usr/include/bpf/uapi"
+
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -D__LIB=lib \
+    -DLIBBPF_EMBEDDED=OFF
+
+ninja -C build
+DESTDIR="$1" ninja -C build install

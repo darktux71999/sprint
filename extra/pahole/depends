@@ -1,0 +1,9 @@
+libbpf
+libelf
+zlib
+musl-obstack
+argp-standalone make
+linux-headers make
+cmake make
+ninja make
+pkgconf make

@@ -1,0 +1,9 @@
+#!/bin/sh -e
+
+[ -x ./configure ] || autoreconf -fi
+
+CFLAGS="$CFLAGS -fPIC" ./configure --prefix=/usr
+make
+
+install -Dm644 libargp.a "$1/usr/lib/libargp.a"
+install -Dm644 argp.h "$1/usr/include/argp.h"

@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+make -C src
+make -C src DESTDIR="$1" PREFIX=/usr LIBSUBDIR=lib install
+
+install -Dm644 LICENSE.BSD-2-Clause "$1/usr/share/licenses/libbpf/LICENSE.BSD-2-Clause"
+
+# Cabeceras uapi propias de libbpf (mas nuevas que las de linux-headers),
+# en dir privado para usarse con -I/usr/include/bpf/uapi (p.ej. pahole).
+for h in bpf.h bpf_common.h btf.h; do
+    install -Dm644 "include/uapi/linux/$h" "$1/usr/include/bpf/uapi/linux/$h"
+done
