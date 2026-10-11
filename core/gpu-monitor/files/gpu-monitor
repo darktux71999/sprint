@@ -21,9 +21,9 @@ get_temp() {
     done
 }
 
-# El pstate activo va marcado con '*' y el valor termina en ':'.
+# La línea del pstate activo termina con '*' ("0f: core 135 MHz ... *").
 get_current_pstate() {
-    awk '/^\*/ {sub(/^\*[[:space:]]*/, ""); sub(/:.*/, ""); print; exit}' "$PSTATE_FILE" 2>/dev/null
+    awk '$NF == "*" {v = $1; sub(/:$/, "", v); print v; exit}' "$PSTATE_FILE" 2>/dev/null
 }
 
 set_pstate() {
