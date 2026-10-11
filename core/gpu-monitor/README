@@ -1,0 +1,31 @@
+gpu-monitor
+________________________________________________________________________________
+
+Ajusta el pstate de nouveau (GeForce GT730, Kepler GK208) segun la temperatura
+del GPU. Cuando la temperatura baja de 60 C fija el pstate "0f" (maximo
+rendimiento); por encima de 75 C fija "07" (bajo consumo). En la banda
+intermedia conserva el estado actual (histeresis).
+
+Pensado para ejecutarse como servicio runit, donde corre como root y puede
+escribir en /sys/kernel/debug/dri/0/pstate (requiere debugfs montado).
+
+Local (no upstream).
+
+Instalacion
+________________________________________________________________________________
+
+    kiss build gpu-monitor
+    kiss install gpu-monitor
+
+El paquete instala:
+
+    /usr/bin/gpu-monitor
+    /etc/sv/gpu-monitor/run
+
+Habilitacion del servicio
+________________________________________________________________________________
+
+    ln -s /etc/sv/gpu-monitor /var/service/gpu-monitor
+
+Los cambios de pstate se registran en syslog (/var/log/messages) mediante
+logger, ademas de por stdout.

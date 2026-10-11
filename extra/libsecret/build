@@ -1,5 +1,7 @@
 #!/bin/sh -e
 
+patch -p1 < fcntl.patch
+
 meson setup build \
 	--prefix=/usr \
 	-Dgtk_doc=false \

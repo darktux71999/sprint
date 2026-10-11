@@ -1,0 +1,8 @@
+#!/bin/sh -e
+
+install -Dm755 gpu-monitor "$1/usr/bin/gpu-monitor"
+
+# Install runit service.
+mkdir -p "$1/etc/sv/gpu-monitor"
+install -Dm755 gpu-monitor.run "$1/etc/sv/gpu-monitor/run"
+ln -sf /run/runit/supervise.gpu-monitor "$1/etc/sv/gpu-monitor/supervise"

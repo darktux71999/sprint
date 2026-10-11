@@ -1,4 +1,4 @@
-https://webkitgtk.org/releases/webkitgtk-2.54.0.tar.xz
+https://webkitgtk.org/releases/webkitgtk-2.54.1.tar.xz
 patches/fortify.patch
 patches/le-check.patch
 patches/loong-hwcap.patch

@@ -9,4 +9,4 @@ cmake -B build -G Ninja \
 	-DHWY_ENABLE_TESTS=OFF
 cmake --build build --parallel 8
 DESTDIR="$1" cmake --install build
-install -Dm644 LICENSE-BSD3 "$1/usr/share/licenses/highway/LICENSE-BSD3"
+install -Dm644 LICENSE "$1/usr/share/licenses/highway/LICENSE"

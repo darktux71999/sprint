@@ -1,0 +1,3 @@
+#!/bin/sh -e
+
+install -Dm755 kiss-integrity "$1/usr/bin/kiss-integrity"

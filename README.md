@@ -13,8 +13,13 @@ sprint/
 ├── core/       # Sistema base
 ├── extra/      # Usuario, herramientas, libs
 ├── xorg/       # X server, drivers, X11
-└── test/       # Experimental
+├── test/       # Experimental
+└── python/     # Paquetes y librerías Python
 ```
+
+Los lenguajes solo se separan en su propio directorio cuando acumulan
+muchas recetas (p. ej. Python, 16). Lua (5) y el resto de lenguajes con
+una o dos recetas permanecen en `core/`/`extra/`.
 
 ## Paquete
 

@@ -18,7 +18,7 @@ esac
     --without-node-code-cache \
     --ninja
 
-ninja -C out/Release
+samu -j8 -C out/Release
 tools/install.py install --dest-dir "$1" --prefix /usr
 
 # Remove unneeded files.

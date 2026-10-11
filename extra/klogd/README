@@ -1,0 +1,36 @@
+klogd
+________________________________________________________________________________
+
+Servicio runit para el applet klogd de BusyBox. klogd lee el anillo de
+mensajes del kernel (/proc/kmsg) y los reenvia a syslogd, que los escribe en
+/var/log/messages con facility "kern".
+
+BusyBox provee el binario klogd, pero su receta no instala un servicio para
+el (solo acpid, crond, syslogd, mdev y ntpd). Este paquete aporta unicamente
+dicho servicio, sin recompilar busybox.
+
+Sin klogd, syslogd NO captura los mensajes del kernel (dmesg): traps de
+nouveau, etc. Requiere syslogd corriendo para persistir la salida.
+
+Local (no upstream). Requiere busybox y el servicio syslogd habilitado.
+
+Instalacion
+________________________________________________________________________________
+
+    kiss build klogd
+    kiss install klogd
+
+El paquete instala:
+
+    /etc/sv/klogd/run
+
+Habilitacion del servicio
+________________________________________________________________________________
+
+    ln -s /etc/sv/klogd /var/service/klogd
+
+Verificacion
+________________________________________________________________________________
+
+    sh -c 'echo "<4>prueba-kern" > /dev/kmsg'
+    grep -E 'kern' /var/log/messages

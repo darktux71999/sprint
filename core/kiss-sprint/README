@@ -1,0 +1,12 @@
+kiss-sprint
+________________________________________________________________________________
+
+This package preserves the exact /usr/bin/kiss script installed when this
+snapshot was created, under /usr/bin/kiss-sprint. It is kept separate from the
+upstream kiss recipe and does not replace /usr/bin/kiss.
+
+The snapshot is compared byte-for-byte with /usr/bin/kiss and identified by its
+Blake3 checksum in checksums. Refresh files/kiss-sprint and the checksum when
+you intentionally capture a later installed version.
+
+Run kiss-sprint version to inspect its embedded package-manager version.

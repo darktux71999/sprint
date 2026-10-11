@@ -1,3 +1,4 @@
 libedit
 linux-headers make
+llvm make
 util-linux

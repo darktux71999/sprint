@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+# Install runit service.
+mkdir -p "$1/etc/sv/klogd"
+install -Dm755 klogd.run "$1/etc/sv/klogd/run"
+ln -sf /run/runit/supervise.klogd "$1/etc/sv/klogd/supervise"

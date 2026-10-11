@@ -1,0 +1,67 @@
+#!/bin/sh
+
+set -eu
+
+checker=${1:-"$(dirname "$0")/../../extra/kiss-integrity/files/kiss-integrity"}
+tmp=${TMPDIR:-/tmp}/kiss-integrity-test.$$
+root=$tmp/root
+repo=$tmp/repo
+
+cleanup() {
+    rm -rf "$tmp"
+}
+
+trap cleanup EXIT HUP INT TERM
+mkdir -p "$root/var/db/kiss/installed" "$root/usr/bin" "$root/usr/lib" "$repo/shared" "$repo/app"
+printf x > "$root/usr/bin/base"
+printf x > "$root/usr/lib/libsample.so.1"
+
+mkdir -p "$root/var/db/kiss/installed/base" \
+    "$root/var/db/kiss/installed/shared" \
+    "$root/var/db/kiss/installed/lib-client" \
+    "$root/var/db/kiss/installed/app"
+printf '1 1\n' > "$root/var/db/kiss/installed/base/version"
+printf '1 1\n' > "$root/var/db/kiss/installed/shared/version"
+printf '1 1\n' > "$root/var/db/kiss/installed/lib-client/version"
+printf '1 1\n' > "$root/var/db/kiss/installed/app/version"
+printf '/usr/bin/base\n' > "$root/var/db/kiss/installed/base/manifest"
+printf '/usr/lib/libsample.so.1\n' > "$root/var/db/kiss/installed/shared/manifest"
+printf '/usr/bin/base\n' > "$root/var/db/kiss/installed/lib-client/manifest"
+printf '/usr/bin/base\n' > "$root/var/db/kiss/installed/app/manifest"
+printf 'base\n' > "$root/var/db/kiss/installed/shared/depends"
+printf 'shared\n' > "$root/var/db/kiss/installed/lib-client/depends"
+printf 'lib-client\n' > "$root/var/db/kiss/installed/app/depends"
+printf '2 1\n' > "$repo/shared/version"
+printf '1 2\n' > "$repo/app/version"
+
+if output=$(KISS_ROOT="$root" KISS_PATH="$repo" "$checker" --no-elf); then
+    printf 'checker did not report repository version drift\n' >&2
+    exit 1
+else
+    status=$?
+    [ "$status" -eq 1 ] || exit "$status"
+fi
+printf '%s\n' "$output" | grep -F 'UPDATE AVAILABLE: shared (1 1 -> 2 1)' >/dev/null
+printf '%s\n' "$output" | grep -F 'REBUILD CANDIDATE: lib-client' >/dev/null
+printf '%s\n' "$output" | grep -F 'REBUILD CANDIDATE: app' >/dev/null
+
+output=$(KISS_ROOT="$root" "$checker" --no-elf --rebuild-for shared)
+printf '%s\n' "$output" | grep -F 'REBUILD CANDIDATE: lib-client' >/dev/null
+printf '%s\n' "$output" | grep -F 'REBUILD CANDIDATE: app' >/dev/null
+
+ln -s absent "$root/usr/bin/broken"
+printf '/usr/bin/broken\n' >> "$root/var/db/kiss/installed/base/manifest"
+if KISS_ROOT="$root" "$checker" --no-elf > "$tmp/output" 2>&1; then
+    printf 'checker accepted a broken symlink\n' >&2
+    exit 1
+fi
+grep -F 'base has broken symlink: /usr/bin/broken' "$tmp/output" >/dev/null
+
+rm "$root/usr/bin/base"
+if KISS_ROOT="$root" "$checker" --no-elf > "$tmp/output" 2>&1; then
+    printf 'checker accepted a missing manifest path\n' >&2
+    exit 1
+fi
+grep -F 'manifest path missing: /usr/bin/base' "$tmp/output" >/dev/null
+
+printf 'PASS: missing manifest paths, runtime dependency closure, and repo version drift\n'

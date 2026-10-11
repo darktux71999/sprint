@@ -1,0 +1,247 @@
+#!/bin/sh
+
+usage() {
+    printf 'Usage: kiss-integrity [--no-elf] [--elf-all] [--rebuild-for PACKAGE] [--help]\n'
+}
+
+fail() {
+    printf 'ERROR: %s\n' "$*" >&2
+    exit 2
+}
+
+error() {
+    printf 'ERROR: %s\n' "$*" >&2
+    error_count=$((error_count + 1))
+}
+
+note() {
+    printf 'INFO: %s\n' "$*"
+}
+
+root=${KISS_ROOT:-/}
+case $root in
+    /) root= ;;
+    /*) root=${root%/} ;;
+    *) fail 'KISS_ROOT must be an absolute path' ;;
+esac
+
+db=$root/var/db/kiss/installed
+[ -d "$db" ] || fail "installed package database not found: $db"
+
+elf_check=yes
+elf_all=no
+if [ -n "$root" ]; then
+    note 'ELF checks are disabled for alternate KISS_ROOT; run the checker inside that root.'
+    elf_check=no
+fi
+rebuild_for=
+while [ "$#" -gt 0 ]; do
+    case $1 in
+        --no-elf) elf_check=no ;;
+        --elf-all) elf_all=yes ;;
+        --rebuild-for)
+            [ "$#" -ge 2 ] || fail '--rebuild-for needs a package name'
+            rebuild_for=$2
+            shift
+        ;;
+        -h|--help)
+            usage
+            exit 0
+        ;;
+        *) usage >&2; fail "unknown option: $1" ;;
+    esac
+    shift
+done
+
+command -v awk >/dev/null 2>&1 || fail 'awk is required'
+command -v grep >/dev/null 2>&1 || fail 'grep is required'
+if [ "$elf_check" = yes ]; then
+    command -v readelf >/dev/null 2>&1 || fail 'readelf is required for ELF checks'
+    command -v ldd >/dev/null 2>&1 || fail 'ldd is required for ELF checks'
+fi
+
+error_count=0
+file_count=0
+package_count=0
+elf_count=0
+update_count=0
+rebuild_count=0
+rebuild_seen=' '
+
+check_reverse_dependencies() {
+    pending=$1
+    seen=" $1 "
+
+    while [ -n "$pending" ]; do
+        case $pending in ' '*) pending=${pending# } ;; esac
+        current=${pending%% *}
+        case $pending in
+            *' '*) pending=${pending#* } ;;
+            *) pending= ;;
+        esac
+
+        for depfile in "$db"/*/depends; do
+            [ -f "$depfile" ] || continue
+            dependent=${depfile%/depends}
+            dependent=${dependent##*/}
+            [ "$dependent" = "$1" ] && continue
+            case $seen in *" $dependent "*) continue ;; esac
+
+            depends_on_current=no
+            while read -r dependency build_only || [ -n "$dependency" ]; do
+                [ "$dependency" = "$current" ] && [ -z "$build_only" ] && {
+                    depends_on_current=yes
+                    break
+                }
+            done < "$depfile"
+
+            [ "$depends_on_current" = yes ] || continue
+            seen="$seen$dependent "
+            pending="${pending}${pending:+ }$dependent"
+            case $rebuild_seen in *" $dependent "*) continue ;; esac
+            rebuild_seen="$rebuild_seen$dependent "
+            rebuild_count=$((rebuild_count + 1))
+            printf 'REBUILD CANDIDATE: %s (runtime dependency path includes %s)\n' "$dependent" "$current"
+        done
+    done
+}
+
+find_recipe_version() {
+    recipe_version=
+    old_ifs=$IFS
+    IFS=:
+    for repo_path in $KISS_PATH; do
+        [ -r "$repo_path/$1/version" ] || continue
+        IFS=' '
+        read -r recipe_ver recipe_rel < "$repo_path/$1/version" || :
+        recipe_version="$recipe_ver $recipe_rel"
+        IFS=:
+        break
+    done
+    IFS=$old_ifs
+}
+
+package_has_shared_library() {
+    is_shared_library=no
+    while read -r manifest_path || [ -n "$manifest_path" ]; do
+        case $manifest_path in
+            */lib/*|*/lib??/*|*/lib???/*|*/lib????/*)
+                case $manifest_path in
+                    *.so|*.so.*) is_shared_library=yes; return 0 ;;
+                esac
+            ;;
+        esac
+    done < "$db/$1/manifest"
+    return 1
+}
+
+if [ -n "$rebuild_for" ]; then
+    [ -d "$db/$rebuild_for" ] || fail "package is not installed: $rebuild_for"
+    printf 'REBUILD CANDIDATES for %s:\n' "$rebuild_for"
+    check_reverse_dependencies "$rebuild_for"
+fi
+
+for package_dir in "$db"/*; do
+    [ -d "$package_dir" ] || continue
+    package=${package_dir##*/}
+    manifest=$package_dir/manifest
+    depends=$package_dir/depends
+    package_count=$((package_count + 1))
+
+    if [ ! -r "$manifest" ]; then
+        error "$package has no readable manifest"
+        continue
+    fi
+
+    while read -r manifest_path || [ -n "$manifest_path" ]; do
+        [ -n "$manifest_path" ] || continue
+        case $manifest_path in
+            /*) ;;
+            *) error "$package manifest contains a non-absolute path: $manifest_path"; continue ;;
+        esac
+        file_count=$((file_count + 1))
+        target=$root$manifest_path
+        check_path=$target
+        case $manifest_path in
+            /var/db/kiss/choices/*\>*)
+                alternative=${manifest_path##*/}
+                active_path=${alternative#*>}
+                active_path=$(printf '%s' "$active_path" | tr '>' '/')
+                check_path=$root/$active_path
+            ;;
+        esac
+        case $manifest_path in
+            */supervise)
+                [ -h "$target" ] || error "$package manifest path missing: $manifest_path"
+                continue
+            ;;
+            */) [ -d "$target" ] || error "$package manifest path missing: $manifest_path" ;;
+            *)
+                if [ -h "$target" ] && [ ! -e "$target" ]; then
+                    [ -e "$check_path" ] || error "$package has broken symlink: $manifest_path"
+                else
+                    { [ -e "$target" ] || [ -e "$check_path" ]; } || error "$package manifest path missing: $manifest_path"
+                fi
+            ;;
+        esac
+
+        [ "$elf_check" = yes ] || continue
+        [ -f "$target" ] && [ ! -h "$target" ] || continue
+        case $manifest_path in
+            */bin/*|*/sbin/*) ;;
+            */lib/*|*/lib??/*|*/lib???/*|*/lib????/*)
+                [ "$elf_all" = yes ] || continue
+            ;;
+            *) continue ;;
+        esac
+
+        dynamic=$(readelf -d "$target" 2>/dev/null) || continue
+        case $dynamic in *'(NEEDED)'*) ;;
+            *) continue ;;
+        esac
+        elf_count=$((elf_count + 1))
+        ldd_output=$(ldd "$target" 2>&1)
+        unresolved=$(printf '%s\n' "$ldd_output" | grep -E 'not found|Error loading shared library|Error relocating|symbol not found|No such file or directory' | sed -n '1p' || :)
+        if [ -n "$unresolved" ]; then
+            error "$package ELF dependency issue in $manifest_path: $unresolved"
+        fi
+    done < "$manifest"
+
+    if [ -r "$depends" ]; then
+        while read -r dependency build_only || [ -n "$dependency" ]; do
+            [ -n "$dependency" ] || continue
+            case $dependency in \#*) continue ;; esac
+            [ -z "$build_only" ] || continue
+            if [ ! -d "$db/$dependency" ]; then
+                error "$package has missing runtime dependency: $dependency"
+            fi
+        done < "$depends"
+    fi
+
+done
+
+if [ -n "$KISS_PATH" ]; then
+    for package_dir in "$db"/*; do
+        [ -d "$package_dir" ] || continue
+        package=${package_dir##*/}
+        installed_version=
+        installed_release=
+        if [ -r "$package_dir/version" ]; then
+            read -r installed_version installed_release < "$package_dir/version" || :
+        fi
+        find_recipe_version "$package"
+        [ -n "$recipe_version" ] || continue
+        installed="$installed_version $installed_release"
+        [ "$recipe_version" = "$installed" ] && continue
+        update_count=$((update_count + 1))
+        printf 'UPDATE AVAILABLE: %s (%s -> %s)\n' "$package" "$installed" "$recipe_version"
+        if package_has_shared_library "$package"; then
+            check_reverse_dependencies "$package"
+        fi
+    done
+fi
+
+printf 'SUMMARY: packages=%s manifest_paths=%s dynamic_elf=%s errors=%s updates=%s rebuild_candidates=%s\n' \
+    "$package_count" "$file_count" "$elf_count" "$error_count" "$update_count" "$rebuild_count"
+
+[ "$error_count" -eq 0 ] && [ "$update_count" -eq 0 ] || exit 1

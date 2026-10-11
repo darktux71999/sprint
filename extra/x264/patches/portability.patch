@@ -1,5 +1,3 @@
-diff --git a/configure b/configure
-index c1fb599..ad6eb33 100755
 --- a/configure
 +++ b/configure
 @@ -1,4 +1,4 @@
@@ -8,7 +6,7 @@ index c1fb599..ad6eb33 100755
  
  if test x"$1" = x"-h" -o x"$1" = x"--help" ; then
  cat <<EOF
-@@ -62,7 +62,7 @@ exit 1
+@@ -62,7 +62,7 @@
  fi
  
  log_check() {
@@ -17,7 +15,7 @@ index c1fb599..ad6eb33 100755
  }
  
  log_ok() {
-@@ -82,12 +82,12 @@ cc_cflags() {
+@@ -82,12 +82,12 @@
      # suppress them by reducing the warning level rather than having to use #pragmas
      for arg in $*; do
          [[ "$arg" = -falign-loops* ]] && arg=
@@ -33,7 +31,7 @@ index c1fb599..ad6eb33 100755
          if [ $compiler_style = MS ]; then
              [ "$arg" = -ffast-math ] && arg="-fp:fast"
              [ "$arg" = -Wall ] && arg=
-@@ -103,14 +103,14 @@ cc_cflags() {
+@@ -103,14 +103,14 @@
          fi
          [ $compiler = CL -a "$arg" = -O3 ] && arg=-O2
  
@@ -51,7 +49,7 @@ index c1fb599..ad6eb33 100755
          [ "${arg#-L}" != "$arg" ] && arg=-libpath:${arg#-L}
          [ "$arg" = -Wl,--large-address-aware ] && arg=-largeaddressaware
          [ "$arg" = -s ] && arg=
-@@ -119,15 +119,17 @@ cl_ldflags() {
+@@ -119,15 +119,17 @@
          [ "$arg" = -Werror ] && arg=
          [ "$arg" = -Wshadow ] && arg=
          [ "$arg" = -Wmaybe-uninitialized ] && arg=
@@ -72,7 +70,7 @@ index c1fb599..ad6eb33 100755
      done
  }
  
-@@ -191,7 +193,7 @@ cpp_check() {
+@@ -191,7 +193,7 @@
      for arg in $1; do
          echo "#include <$arg>" >> conftest.c
      done
@@ -81,7 +79,7 @@ index c1fb599..ad6eb33 100755
      if [ $compiler_style = MS ]; then
          cpp_cmd="$CC conftest.c $(cc_cflags $CFLAGS $2) -P"
      else
-@@ -340,11 +342,15 @@ rm -rf conftest*
+@@ -352,11 +354,15 @@
  
  # Construct a path to the specified directory relative to the working directory
  relative_path() {
@@ -91,17 +89,17 @@ index c1fb599..ad6eb33 100755
 +    base="${PWD%/}"
 +    path="$(cd "$1" >/dev/null; printf '%s/.' "${PWD%/}")"
 +    up=''
-+
+ 
+-    while [[ $path != "$base/"* ]]; do
 +    while :; do
 +        case $path in
 +            "$base/"*) break ;;
 +        esac
- 
--    while [[ $path != "$base/"* ]]; do
++
          base="${base%/*}"
          up="../$up"
      done
-@@ -590,48 +596,6 @@ trap 'rm -rf conftest*' EXIT
+@@ -605,48 +611,6 @@
  # test for use of compilers that require specific handling
  cc_base="$(basename "$CC")"
  QPRE="-"
@@ -150,7 +148,7 @@ index c1fb599..ad6eb33 100755
  
  if [ $compiler = GNU ]; then
      if cc_check '' -Werror=unknown-warning-option ; then
-@@ -688,18 +652,6 @@ case $host_os in
+@@ -710,18 +674,6 @@
          define HAVE_MALLOC_H
          libm="-lm"
          ;;
@@ -169,7 +167,7 @@ index c1fb599..ad6eb33 100755
      sunos*|solaris*)
          SYS="SunOS"
          define HAVE_MALLOC_H
-@@ -740,30 +692,6 @@ LDFLAGS="$LDFLAGS $libm"
+@@ -762,30 +714,6 @@
  stack_alignment=4
  case $host_cpu in
      i*86)
@@ -200,7 +198,7 @@ index c1fb599..ad6eb33 100755
          ;;
      x86_64)
          ARCH="X86_64"
-@@ -979,7 +907,7 @@ fi
+@@ -1007,7 +935,7 @@
  
  if [ $asm = auto -a $ARCH = ARM ] ; then
      # set flags so neon is built by default
@@ -209,21 +207,20 @@ index c1fb599..ad6eb33 100755
  
      cc_check '' '' '__asm__("add r0, r1, r2");' && define HAVE_ARM_INLINE_ASM
      if [ $compiler = CL ] && cpp_check '' '' 'defined(_M_ARM) && _M_ARM >= 7' ; then
-@@ -1690,7 +1618,8 @@ cat conftest.log >> config.log
+@@ -1766,7 +1694,9 @@
  cat conftest.log
  
  [ "$SRCPATH" != "." ] && ln -sf ${SRCPATH}/Makefile ./Makefile
--mkdir -p common/{aarch64,arm,mips,ppc,x86,loongarch} encoder extras filters/video input output tools
+-mkdir -p common/{aarch64,arm,mips,ppc,x86,loongarch,riscv64} encoder extras filters/video input output tools
 +mkdir -p common/aarch64 common/arm common/mips common/ppc common/x86
++mkdir -p common/loongarch common/riscv64
 +mkdir -p encoder extras filters/video input output tools
  
  echo
  echo "You can run 'make' or 'make fprofiled' now."
-diff --git a/tools/cltostr.sh b/tools/cltostr.sh
-index 23b6cc7..3feaafe 100755
 --- a/tools/cltostr.sh
 +++ b/tools/cltostr.sh
-@@ -18,7 +18,7 @@ dump() {
+@@ -18,7 +18,7 @@
  }
  
  # Print MD5 hash w/o newline character to not embed the character in the array.
@@ -232,7 +229,7 @@ index 23b6cc7..3feaafe 100755
      # md5sum is not standard, so try different platform-specific alternatives.
      { md5sum "$1" || md5 -q "$1" || digest -a md5 "$1"; } 2>/dev/null |
          cut -b -32 | tr -d '\n\r'
-@@ -29,5 +29,5 @@ trap 'rm -f "$1.temp"' EXIT
+@@ -29,5 +29,5 @@
  sanitize | tee "$1.temp" |
      dump 'x264_opencl_source' > "$1"
  

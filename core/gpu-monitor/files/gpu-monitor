@@ -1,0 +1,53 @@
+#!/bin/sh
+# gpu-monitor - ajusta el pstate de nouveau (GeForce GT730, Kepler GK208)
+# segun la temperatura. Se ejecuta como servicio runit, por lo que corre como root.
+
+TEMP_GLOB="/sys/class/drm/card0/device/hwmon/hwmon*/temp1_input"
+PSTATE_FILE="/sys/kernel/debug/dri/0/pstate"
+INTERVAL=30
+
+# Umbrales de temperatura en miligrados.
+TEMP_LOW=60000   # 60 C
+TEMP_HIGH=75000  # 75 C
+
+log() {
+    logger -t gpu-monitor "$1" 2>/dev/null
+    echo "$1"
+}
+
+get_temp() {
+    cat $TEMP_GLOB 2>/dev/null | head -n 1
+}
+
+get_current_pstate() {
+    awk '/^\*/ {print $1}' "$PSTATE_FILE" 2>/dev/null | tr -d '*'
+}
+
+set_pstate() {
+    state="$1"
+    if [ "$(get_current_pstate)" != "$state" ]; then
+        echo "$state" > "$PSTATE_FILE" 2>/dev/null
+        log "$(date '+%Y-%m-%d %H:%M:%S') - pstate $state (temp: $temp)"
+    fi
+}
+
+while true; do
+    temp=$(get_temp)
+
+    if [ -z "$temp" ]; then
+        log "error: no se pudo leer la temperatura"
+        sleep "$INTERVAL"
+        continue
+    fi
+
+    if [ "$temp" -lt "$TEMP_LOW" ]; then
+        # Frio: alto rendimiento.
+        set_pstate "0f"
+    elif [ "$temp" -gt "$TEMP_HIGH" ]; then
+        # Caliente: bajo consumo.
+        set_pstate "07"
+    fi
+    # Entre 60 y 75 C: mantener estado actual (histeresis).
+
+    sleep "$INTERVAL"
+done

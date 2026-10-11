@@ -25,6 +25,12 @@ autoreconf -fiv
 	--disable-manpages
 make
 make DESTDIR="$1" install
+rm -f \
+	"$1/usr/share/man/man1/avahi-resolve-host-name.1" \
+	"$1/usr/share/man/man1/avahi-resolve-address.1" \
+	"$1/usr/share/man/man1/avahi-publish-service.1" \
+	"$1/usr/share/man/man1/avahi-publish-address.1" \
+	"$1/usr/share/man/man1/avahi-browse-domains.1"
 rm -rf "$1/usr/share/doc"
 for license in LICENSE COPYING; do
 	if [ -f "$license" ]; then

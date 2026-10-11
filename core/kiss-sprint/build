@@ -1,0 +1,4 @@
+#!/bin/sh -e
+
+install -Dm755 kiss-sprint "$1/usr/bin/kiss-sprint"
+install -Dm644 README "$1/usr/share/doc/kiss-sprint/README"

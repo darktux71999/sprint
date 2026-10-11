@@ -2,6 +2,7 @@ bzip2
 expat
 libffi
 ncurses
+readline
 openssl
 sqlite
 zlib

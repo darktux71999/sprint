@@ -8,6 +8,7 @@
     --disable-lz4 \
     --disable-zstd \
     --disable-xxhash \
+    --disable-idn \
     --without-libiconv \
     --with-openssl \
     --with-acl \

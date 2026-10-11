@@ -14,3 +14,7 @@ make DIST_ROOT="$1" PKG_ROOT_SBIN_DIR=/usr/bin PKG_ROOT_LIB_DIR=/usr/lib
 make DIST_ROOT="$1" PKG_ROOT_SBIN_DIR=/usr/bin PKG_ROOT_LIB_DIR=/usr/lib install
 
 rm -rf "$1/usr/share/doc"
+
+if readelf -d "$1/usr/bin/xfs_scrub" | grep -F '/.cache/kiss/proc/'; then
+	exit 1
+fi
