@@ -1,3 +1,7 @@
 #!/bin/sh
 # sda (HDD): bfq para mejor respuesta interactiva durante builds.
-echo bfq > /sys/block/sda/queue/scheduler 2>/dev/null || true
+sched=/sys/block/sda/queue/scheduler
+echo bfq > "$sched" 2>/dev/null || true
+if type log >/dev/null 2>&1; then
+    log "io-sched: sda -> $(cat "$sched" 2>/dev/null)"
+fi
