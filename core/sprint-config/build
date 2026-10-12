@@ -3,7 +3,7 @@
 mkdir -p "$1/etc/rc.d" "$1/etc/sysctl.d"
 
 # Boot hooks.
-for f in cgroup-delegate.boot cpu-governor.boot io-sched.boot keymap.boot network.boot zram.boot; do
+for f in cgroup-delegate.boot cpu-governor.boot damon.boot io-sched.boot keymap.boot network.boot zram.boot; do
     install -Dm755 "$f" "$1/etc/rc.d/$f"
 done
 
