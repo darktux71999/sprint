@@ -50,8 +50,31 @@ echo "Jobs de compilacion: $jobs"
 
 # 2.2 Configuracion de cmake (Krak3n, adaptada a KISS).
 # "$@" son las opciones extra de esta pasada (PGO).
+#
+# CMAKE_BUILD_TYPE=Release aporta -O3 -DNDEBUG, que es lo que usa upstream
+# para sus releases. Se quita el nivel -O de CFLAGS porque la linea de
+# compilacion no debe llevar dos niveles (gana el ultimo) y la fuente unica
+# del nivel de optimizacion es el build type. El resto de CFLAGS (pipe,
+# march=native, mtune=native) si se pasa: el compilador tiene que generar
+# codigo para esta CPU, no para la baseline generica de x86-64.
+#
+# Las dos pasadas del PGO (instrumentada y final) deben llevar EXACTAMENTE los
+# mismos flags: si difieren, el perfil no encaja con el binario, clang avisa
+# de que el perfil esta obsoleto y descarta lo que no casa.
+base_cflags=$(printf '%s' "$CFLAGS" | sed 's/-O[0-3sgz]//g')
+base_cxxflags=$(printf '%s' "$CXXFLAGS" | sed 's/-O[0-3sgz]//g')
+
+# Flags extra de la pasada en curso (PGO); vacios en el build normal.
+EXTRA_C_FLAGS=
+EXTRA_CXX_FLAGS=
+EXTRA_LD_FLAGS=
+
 configure() {
     cmake -S ../llvm \
+        -DCMAKE_C_FLAGS="$base_cflags $EXTRA_C_FLAGS" \
+        -DCMAKE_CXX_FLAGS="$base_cxxflags $EXTRA_CXX_FLAGS" \
+        -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS $EXTRA_LD_FLAGS" \
+        -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS $EXTRA_LD_FLAGS" \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_LIBDIR=lib \
         -DCMAKE_BUILD_TYPE=Release \
@@ -145,11 +168,13 @@ if [ "${LLVM_PGO:-0}" = 1 ]; then
     fi
 
     echo "-> PGO: primera pasada instrumentada"
-    configure \
-        -DCMAKE_C_FLAGS="$CFLAGS -fprofile-generate=$PROFILE_DIR" \
-        -DCMAKE_CXX_FLAGS="$CXXFLAGS -fprofile-generate=$PROFILE_DIR" \
-        -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS -fprofile-generate=$PROFILE_DIR" \
-        -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS -fprofile-generate=$PROFILE_DIR"
+    EXTRA_C_FLAGS="-fprofile-generate=$PROFILE_DIR"
+    EXTRA_CXX_FLAGS="-fprofile-generate=$PROFILE_DIR"
+    EXTRA_LD_FLAGS="-fprofile-generate=$PROFILE_DIR"
+    configure
+    EXTRA_C_FLAGS=
+    EXTRA_CXX_FLAGS=
+    EXTRA_LD_FLAGS=
     cmake --build . -j "$jobs"
 
     echo "-> PGO: entrenamiento"
@@ -179,11 +204,13 @@ if [ "${LLVM_PGO:-0}" = 1 ]; then
         echo "-> PGO: segunda pasada con el perfil"
         cmake --build . --target clean
         rm -rf CMakeCache.txt CMakeFiles
-        configure \
-            -DCMAKE_C_FLAGS="$CFLAGS -fprofile-instr-use=$PROF_DATA" \
-            -DCMAKE_CXX_FLAGS="$CXXFLAGS -fprofile-instr-use=$PROF_DATA" \
-            -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS -fprofile-instr-use=$PROF_DATA" \
-            -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS -fprofile-instr-use=$PROF_DATA"
+        EXTRA_C_FLAGS="-fprofile-instr-use=$PROF_DATA"
+        EXTRA_CXX_FLAGS="-fprofile-instr-use=$PROF_DATA"
+        EXTRA_LD_FLAGS="-fprofile-instr-use=$PROF_DATA"
+        configure
+        EXTRA_C_FLAGS=
+        EXTRA_CXX_FLAGS=
+        EXTRA_LD_FLAGS=
         cmake --build . -j "$jobs"
     else
         echo "AVISO: no se ha generado ningun perfil; se instala el build" \

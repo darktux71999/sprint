@@ -121,6 +121,56 @@ mozconfig, proyectos extra, PGO) va dentro del `build`:
   compilación y no se conoce la ruta del repo).
 - `extra/ffmpeg/build`: PGO con `FFMPEG_PGO=1`.
 
+## Niveles de optimización: una sola fuente de verdad
+
+CMake concatena los flags en este orden: `CMAKE_C_FLAGS` (del usuario) primero
+y después los del build type. **Gana el último `-O`**, así que con
+`CMAKE_BUILD_TYPE=Release` la línea real es:
+
+```
+C_FLAGS = -O2 -pipe -march=native -mtune=native -O3 -DNDEBUG
+```
+
+Es decir: `-O3 -DNDEBUG` (lo que usa upstream para sus releases) y el `-O2`
+del entorno es un no-op. La receta de llvm **quita el nivel `-O` de `CFLAGS`**
+antes de pasarlo a cmake, para que no haya dos niveles en la línea y la fuente
+única sea el build type. El resto (`-pipe -march=native -mtune=native`) sí se
+pasa: el compilador tiene que generar código para **esta** CPU, no para la
+baseline genérica de x86-64.
+
+### La instrumentación no degrada el software que se compila
+
+- El compilador instrumentado aplica **las mismas optimizaciones** que el
+  normal. Lo que se instrumenta es el **programa que se compila**: se le añade
+  un runtime que registra qué caminos de código se ejecutan. Eso es lo que
+  recoge el perfil.
+- La pasada final aplica las mismas optimizaciones **más** las decisiones
+  guiadas por el perfil (layout de bloques hot/cold, inlining mejor
+  elegido). El software final no queda "desoptimizado" por el hecho de haber
+  pasado por un compilador instrumentado.
+- El compilador instrumentado sí es más lento en runtime (escribe contadores),
+  pero es desechable: solo sirve para entrenar.
+
+### La trampa: las dos pasadas del PGO deben llevar los mismos flags
+
+Si la pasada instrumentada usa un nivel de optimización distinto del de la
+pasada final, el perfil **no encaja con el binario**: clang compara por hash de
+función, así que avisa de que el perfil está obsoleto y descarta lo que no
+casa. Por eso en la receta las dos pasadas comparten exactamente los mismos
+flags y solo cambia el flag de perfil.
+
+Lo que **sí** puede ir con flags rápidos es el *build de entrenamiento* (el
+que recompila CodeGen con el clang instrumentado): ahí los flags no afectan a
+la validez del perfil, solo a cuánto tarda en ejercitar el compilador.
+
+### Los flags de desarrollo en el toolchain son mala operación
+
+Un LLVM compilado a `-O0`/`-O1` es **2-4x más lento como compilador**, y todo
+lo que compiles después con él paga ese coste. El ahorro en tiempo de
+compilación (1,5-2x) no compensa un toolchain permanentemente peor. Los flags
+"devel" tienen sentido para una variante de depuración, nunca para el
+compilador que se instala.
+
 ## PGO: cómo y en qué orden
 
 El PGO se hace con la interfaz de clang, no con la de gcc:
