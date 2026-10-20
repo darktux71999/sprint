@@ -182,5 +182,6 @@ ln -sf clang cc
 ln -sf clang gcc
 ln -sf clang cpp
 ln -sf clang++ c++
+ln -sf clang++ g++
 
 # Scripts c89/c99 (Opcional, si los tienes en sources instalalos, si no, omite)
