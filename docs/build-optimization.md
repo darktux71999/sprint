@@ -145,6 +145,12 @@ Dos requisitos que no son evidentes:
       el perfil) → instala el llvm con PGO.
    3. `LLVM_BOLT=1` (instrumentación de BOLT → perfil → reordenado).
 
+El entrenamiento de la fase 2 **reconstruye la parte caliente del
+compilador** (IR, optimizador y backend X86) con el clang ya instrumentado:
+es el mismo flujo que usa upstream, y el perfil que sale cubre de verdad el
+frontend y el optimizador. Compilar un corpus pequeño daría un perfil mucho
+más débil.
+
 Lo mismo aplica al PGO de ffmpeg (`FFMPEG_PGO=1`): necesita el runtime en el
 toolchain, así que va después del paso 1.
 
