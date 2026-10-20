@@ -43,6 +43,65 @@ eval "$(tools/build-class.sh heavy env)"     # exporta CFLAGS/CXXFLAGS/LDFLAGS/M
 Cada receta que se reconstruya fija sus flags y sus trabajos siguiendo esta
 tabla (el precedente del repo es `core/luajit/build`, que extiende `CFLAGS`).
 
+## Uso con kiss
+
+KISS ejecuta el `build` de la receta heredando el entorno del shell (solo
+fija `CC`, `CXX`, `AR`, `NM` y `RANLIB` por defecto), de modo que los flags
+y los trabajos exportados llegan tal cual al compilador. El flujo es:
+
+```sh
+cd ~/proyectos/sprint
+
+# 1. Elegir clase y exportar su perfil
+eval "$(tools/build-class.sh heavy env)"     # CFLAGS CXXFLAGS LDFLAGS MAKEFLAGS
+kiss b firefox
+```
+
+Campos sueltos, por si solo se quiere uno:
+
+```sh
+tools/build-class.sh heavy jobs        # -> 3
+tools/build-class.sh heavy makeflags   # -> -j3
+tools/build-class.sh heavy cflags      # -> -O2 -pipe -march=native -mtune=native
+tools/build-class.sh light env         # -> export ... (clase ligera)
+```
+
+Clases usadas en este repo: `light` (certs, python-gpep517), `medium`
+(chawan), `heavy` (go, firefox, llvm, mesa, webkitgtk, kicad).
+
+### Con root (doas)
+
+`doas` reinicia `HOME`, así que root no hereda ni el `CCACHE_DIR` ni el
+`KISS_PID` del usuario: el build iría a `/root/.cache/ccache` y a un
+directorio de proceso nuevo, y **ccache no acertaría nunca** (la ruta de los
+ficheros forma parte de la clave). Para que el build use la caché:
+
+```sh
+eval "$(tools/build-class.sh heavy env)"
+doas env KISS_PATH="$KISS_PATH" KISS_PID=stable \
+    MAKEFLAGS="$MAKEFLAGS" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
+    CCACHE_DIR="$HOME/.cache/ccache" CCACHE_TEMPDIR="$HOME/.cache/ccache/tmp" \
+    TMPDIR=/var/tmp/kiss-scratch \
+    kiss b firefox
+```
+
+`KISS_PID=stable` reutiliza siempre el mismo directorio de build (es lo que
+permite que ccache reutilice objetos). A cambio, **no puede haber dos builds
+a la vez**: comparten directorio. `TMPDIR` va fuera del tmpfs de 1 GB de
+`/tmp` porque rust y firefox escriben ahí temporales de varios GiB.
+
+### Lo que no puede venir del entorno
+
+Lo que el paquete solo puede configurar en su receta (opciones de cmake o de
+mozconfig, proyectos extra, PGO) va dentro del `build`:
+
+- `extra/firefox/build`: `ac_add_options --enable-lto=thin`.
+- `core/llvm/build`: `bolt` en `LLVM_ENABLE_PROJECTS`, y los jobs se calculan
+  ahí mismo desde `/proc/meminfo` (una receta no puede llamar a
+  `tools/build-class.sh`: durante el build el directorio actual es el de
+  compilación y no se conoce la ruta del repo).
+- `extra/ffmpeg/build`: PGO con `FFMPEG_PGO=1`.
+
 ## Enlaces y LTO
 
 - Enlazador: `lld` con `--threads=N` limitado (máximo 4) y `-Wl,-O2`.
