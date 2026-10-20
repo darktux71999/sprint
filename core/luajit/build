@@ -7,8 +7,8 @@ esac
 
 export CFLAGS="$CFLAGS -fPIC"
 
-make amalg PREFIX=/usr CC="$CC" HOST_LUA='luajit -joff'
-make install PREFIX=/usr DESTDIR="$1" HOST_LUA='luajit -joff'
+make amalg PREFIX=/usr CC="$CC"
+make install PREFIX=/usr DESTDIR="$1"
 
 # Create these symlinks ourselves as luajit relies
 # on ldconfig to do so and musl does not provide it.
