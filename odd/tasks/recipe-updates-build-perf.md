@@ -1,0 +1,48 @@
+# Actualización de recetas por tandas y optimización de compilación
+
+Objetivo: actualizar las recetas desactualizadas de `~/proyectos/sprint` contra referencias externas (cports → aports → repology), regenerar checksums con `kiss c`, construir con `kiss b`, y exprimir el rendimiento de compilación con flags por paquete, ThinLTO, PGO y BOLT (este último añadido al build de LLVM), sin que el sistema se quede sin RAM ni se cuelgue.
+Rama: `feature/recipe-updates-build-perf` (desde `feature/remove-dead-patches`).
+Entrega: work-unit commits por tanda en la rama de feature. Push, PR y merge son decisiones del usuario.
+Test runner: `sh test/kiss-patch-audit/run` y `sh test/kiss-patch-fail/run` como regresión base del repo; herramientas nuevas llevan su `test/<nombre>/run` hermético.
+
+## Specs
+
+S1. Petición de actualización, verbatim: "puedes actualizar mis recetas de mi software segun referencias usando kiss-outdate en mis subdirectorios del repositorio sprint /home/darktux/proyectos/sprint regeneras checksums con kiss c pkg , y compilas con kiss b pkg". Aceptación: `kiss-outdated` se ejecuta por subdirectorio de categoría (`core`, `extra`, `xorg`, `python`, `test`) del repo `sprint`; cada receta actualizada pasa por `kiss c <pkg>` y se construye con `kiss b <pkg>`.
+
+S2. Flags y control de hilos, verbatim: "puedes personalizar flags de compilacion segun el paquete para exprimir su maximo rendimiento claro revisando que mi sistema no se desborde por esto mismo estima cuales son los hilos correctos dependiendo del build". Aceptación: existe un perfil de flags por clase de paquete y una estimación de hilos por build documentada y aplicada en cada receta construida.
+
+S3. Técnicas de compilación, verbatim: "te permito usar thinlto y demas tecnicas talvez puedas implentar pgo y bolt claro este ultimo hay que agregarlo al build de mi llvm". Aceptación: ThinLTO se aplica donde compense; LLVM se reconstruye con PGO; `bolt` se añade al build de LLVM (`LLVM_ENABLE_PROJECTS`) y se usa para optimizar binarios con perfil.
+
+S4. RAM y caché, verbatim: "y buscar estrategias para compilar evitanto que se tome toda la ram y termine colgando todo , aveces mi cache falla que es un nvme pero solo para que lo tengas en cuenta , lo que tengo instalado esta en kiss l". Aceptación: se documentan y aplican estrategias anti-agotamiento de RAM (jobs por build, hilos de link limitados, cabida de zram/earlyoom), se tiene en cuenta la caché NVMe (ccache) como punto de fallo posible, y `kiss l` es la fuente de lo instalado.
+
+S5. Orden de referencias y regla de no-regresión, verbatim: "toma como referecia principal cports , si no existen ahi usa aports si no por ultimo repology si la version es mayor ala refencia no lo toques". Aceptación: la referencia principal es el checkout de Chimera cports; si el paquete no existe allí, se usa Alpine aports; si tampoco, Repology. Si la versión local es mayor o igual a la referencia, la receta NO se toca; solo se actualiza cuando la referencia es estrictamente mayor.
+
+S6. Alcance por tandas, verbatim: "Por tandas, empezando por lo ligero (Recomendado)". Aceptación: el inventario de desactualizados se clasifica por tamaño/riesgo y se actualiza y reconstruye en tandas: primero paquetes ligeros (hojas), luego medianos y al final los pesados (llvm, rust, mesa, webkitgtk, firefox).
+
+S7. Trabajo previo sin commit, verbatim: "Commit previo como work unit (Recomendado)". Aceptación: los cambios sin commit de `feature/remove-dead-patches` (mesa, firefox, webkitgtk, gst-plugins-bad, fontconfig, luajit y docs) se agrupan en commits convencionales coherentes ANTES de empezar el trabajo nuevo, dejando la rama limpia.
+
+S8. Nivel de optimización elegido por el usuario (respuesta múltiple), verbatim: "ThinLTO donde compense", "Flags por paquete + control de hilos/RAM (Recomendado)", "PGO + BOLT en LLVM", "PGO/BOLT también en otros binarios". Aceptación: los cuatro niveles se implementan; los dos últimos con la inversión de tiempo de máquina que implican.
+
+S9. Hechos del entorno (supuestos verificados el 2026-10-19, no requisitos): CPU Intel Xeon E5-2640 v3, 8 núcleos/16 hilos; RAM 7,7 GB + swap zram 10 GB (6+4); `/tmp` tmpfs de 1 GB; caché de fuentes y ccache en NVMe (`~/.cache`, 1,8 T); `MAKEFLAGS=-j14` global, `CFLAGS/CXXFLAGS=-O1 -pipe -march=native -mtune=native`, `LDFLAGS=-Wl,--thinlto-jobs=4 -Wl,-O0 -Wl,--threads=6 -Wl,-s`, `RUSTFLAGS=-C target-cpu=x86-64-v3`; ccache 4.14 con `CCACHE_MAXSIZE=100G`, `CCACHE_COMPILERCHECK=content`; earlyoom instalado; swappiness=100; KISS 6.2.0 con `KISS_COMPRESS=lz4`; 316 paquetes instalados según `kiss l`. La herramienta `kiss-outdated` resuelve en PATH a `~/.local/bin/kiss-outdated` (compara contra cports/aports locales); existe además `/usr/bin/kiss-outdated` (Repology) como respaldo del tercer escalón.
+
+## Tasks
+
+- T1 · Commit del trabajo previo sin commit (mesa, firefox, webkitgtk, gst-plugins-bad, fontconfig, luajit, docs) · S7 · inline · pendiente
+- T2 · Inventario `kiss-outdated` por subdirectorio (cports → aports → repology) con regla de no-regresión y clasificación en tandas · S1, S5, S6 · inline · pendiente
+- T3 · Perfil de flags por paquete + estimación de hilos por build + estrategias anti-RAM y de caché NVMe (mecanismo y documentación) · S2, S4 · inline · pendiente
+- T4 · Tanda 1 — ligeros: bump + `kiss c` + `kiss b` con flags/clase · S1, S2 · inline + worker de build · pendiente
+- T5 · Tanda 2 — medianos: bump + `kiss c` + `kiss b` con flags/clase · S1, S2 · inline + worker de build · pendiente
+- T6 · Tanda 3 — pesados (rust, mesa, webkitgtk, firefox): bump + `kiss c` + `kiss b` · S1, S2 · worker de build · pendiente
+- T7 · LLVM: update, `bolt` añadido al build, reconstrucción con PGO y optimización BOLT · S1, S3 · worker de build · pendiente
+- T8 · PGO/BOLT en otros binarios donde haya perfil utilizable · S3 · inline · pendiente
+- T9 · Cierre: documentación final de rendimiento, verificación global y resumen · S2-S4, S8 · inline · pendiente
+
+## Log
+
+L1. Petición original del usuario, verbatim: "puedes actualizar mis recetas de mi software segun referencias usando kiss-outdate en mis subdirectorios del repositorio sprint /home/darktux/proyectos/sprint regeneras checksums con kiss c pkg , y compilas con kiss b pkg puedes personalizar flags de compilacion segun el paquete para exprimir su maximo rendimiento claro revisando que mi sistema no se desborde por esto mismo estima cuales son los hilos correctos dependiendo del build te permito usar thinlto y demas tecnicas talvez puedas implentar pgo y bolt claro este ultimo hay que agregarlo al build de mi llvm y buscar estrategias para compilar evitanto que se tome toda la ram y termine colgando todo , aveces mi cache falla que es un nvme pero solo para que lo tengas en cuenta , lo que tengo instalado esta en kiss l "
+
+L2. Respuestas del usuario a las preguntas de alcance (2026-10-19), verbatim: (a) alcance: "Por tandas, empezando por lo ligero (Recomendado)"; (b) cambios sin commit: "Commit previo como work unit (Recomendado)"; (c) referencias: "toma como referecia principal cports , si no existen ahi usa aports si no por ultimo repology si la version es mayor ala refencia no lo toques"; (d) optimización: "ThinLTO donde compense", "Flags por paquete + control de hilos/RAM (Recomendado)", "PGO + BOLT en LLVM", "PGO/BOLT también en otros binarios".
+
+L3. Exploración previa: el repo está en la rama `feature/remove-dead-patches` (12 commits de retirada de parches muertos) con cambios sin commit en `core/luajit/build`, `docs/ccache-kiss.md`, `docs/nouveau-misaligned-reg.md`, `extra/firefox/{build,checksums,sources}`, `extra/fontconfig/depends`, `extra/gst-plugins-bad/build`, `extra/webkitgtk/{build,checksums,sources}` y borrado de `extra/webkitgtk/patches/webdriver-fix-release-log.patch`, más `xorg/mesa/{version,sources,checksums}` y borrado de `xorg/mesa/patches/nak-sustga-channel-mask.patch`. Existen dos variantes de `kiss-outdated`: `~/.local/bin/kiss-outdated` (cports/aports locales, sin red, con `-u` para actualizar los checkouts) y `/usr/bin/kiss-outdated` (Repology vía badges). El cuello de RAM es el riesgo principal: `MAKEFLAGS=-j14` con 7,7 GB de RAM explica los cuelgues en paquetes pesados; `--thinlto-jobs=4` está en LDFLAGS pero sin LTO real activado.
+
+L4. Ruta de trabajo elegida: los hilos por build se estiman por clase de paquete (ligero C, medio C/C++, pesado C++/rust) usando RAM disponible como presupuesto; los flags por paquete se aplican siguiendo el precedente del repo (`core/luajit/build` exporta `CFLAGS` extendido). Tras cada work-unit commit se evalúa con `gentle-ai review assess` según el protocolo ODD.
