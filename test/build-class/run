@@ -22,11 +22,11 @@ check() {
 MEM=7032832
 NP=16
 
-check "heavy jobs con 6.7G/16 hilos" 3 \
+check "heavy jobs con 6.7G/16 hilos" 4 \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy jobs)"
-check "medium jobs con 6.7G/16 hilos" 6 \
+check "medium jobs con 6.7G/16 hilos" 8 \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium jobs)"
-check "light jobs con 6.7G/16 hilos (sin pasar de nproc)" 15 \
+check "light jobs con 6.7G/16 hilos (sin pasar de nproc)" 16 \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" light jobs)"
 check "link siempre 1 trabajo" 1 \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" link jobs)"
@@ -47,7 +47,7 @@ check "light con 64G tope en nproc" 16 \
     "$(BUILD_CLASS_MEM_KB=$BIG BUILD_CLASS_NPROC=16 "$tool" light jobs)"
 check "medium con 64G tope en 8" 8 \
     "$(BUILD_CLASS_MEM_KB=$BIG BUILD_CLASS_NPROC=16 "$tool" medium jobs)"
-check "heavy con 64G tope en 6" 6 \
+check "heavy con 64G tope en 4" 4 \
     "$(BUILD_CLASS_MEM_KB=$BIG BUILD_CLASS_NPROC=16 "$tool" heavy jobs)"
 
 # Flags por clase.
@@ -56,9 +56,9 @@ check "light usa -O3" "-O3 -pipe -march=native -mtune=native" \
 check "heavy usa -O2" "-O2 -pipe -march=native -mtune=native" \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy cflags)"
 
-check "makeflags acompaña a jobs" "-j3" \
+check "makeflags acompaña a jobs" "-j4" \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy makeflags)"
-check "ldflags usa lld y limita hilos a 4" "-fuse-ld=lld -Wl,--threads=3 -Wl,-O2 -Wl,-s" \
+check "ldflags usa lld y limita hilos a 4" "-fuse-ld=lld -Wl,--threads=4 -Wl,-O2 -Wl,-s" \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy ldflags)"
 check "ldflags de light topea hilos en 4" "-fuse-ld=lld -Wl,--threads=4 -Wl,-O2 -Wl,-s" \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" light ldflags)"

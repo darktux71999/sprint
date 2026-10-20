@@ -53,13 +53,19 @@ nproc=${BUILD_CLASS_NPROC:-$(nproc 2>/dev/null || echo 4)}
 # --- modelo por clase ------------------------------------------------------
 # ram_job_kb: RAM estimada por trabajo de compilación en paquetes de la clase.
 # cap: tope de trabajos simultáneos de esa clase.
-#   light  = 400 MiB por trabajo, tope nproc
-#   medium = 900 MiB por trabajo, tope 8
-#   heavy  = 1800 MiB por trabajo, tope 6
+#
+# Los valores salen de mediciones reales del pico de RSS (VmHWM) por trabajo
+# en esta máquina, con un factor de seguridad:
+#   light  = 68-74 MB medidos (C pequeño)  -> 256 MiB por trabajo, tope nproc
+#   medium = sin medicion directa          -> 512 MiB por trabajo, tope 8
+#   heavy  = 230-384 MB medidos (C++ de LLVM con -O2) -> 768 MiB, tope 4
+# El tope de heavy son 4 porque el enlace de un binario grande (libLLVM.so,
+# libxul con ThinLTO) pide del orden de 3 GB y debe caber junto a los
+# trabajos que sigan compilando.
 case $class in
-    light)  ram_job_kb=409600  cap=$nproc ;;
-    medium) ram_job_kb=921600  cap=8 ;;
-    heavy)  ram_job_kb=1843200 cap=6 ;;
+    light)  ram_job_kb=262144  cap=$nproc ;;
+    medium) ram_job_kb=524288  cap=8 ;;
+    heavy)  ram_job_kb=786432  cap=4 ;;
 esac
 
 if [ "$class" = link ]; then

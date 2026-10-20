@@ -23,10 +23,29 @@ global rompe el sistema en cuanto toca un paquete de esta clase.
 
 | Clase | Paquetes tipo | RAM/trabajo | Jobs | CFLAGS |
 | --- | --- | --- | --- | --- |
-| `light` | librerías C pequeñas, herramientas | ~400 MB | hasta `nproc` | `-O3 -pipe -march=native -mtune=native` |
-| `medium` | chawan, go, python | ~900 MB | hasta 8 | `-O2 -pipe -march=native -mtune=native` |
-| `heavy` | firefox, webkitgtk, llvm, mesa, kicad, go | ~1,8 GB | hasta 6 | `-O2 -pipe -march=native -mtune=native` |
+| `light` | librerías C pequeñas, herramientas | ~256 MiB | hasta `nproc` | `-O3 -pipe -march=native -mtune=native` |
+| `medium` | chawan, python | ~512 MiB | hasta 8 | `-O2 -pipe -march=native -mtune=native` |
+| `heavy` | firefox, webkitgtk, llvm, mesa, kicad, go | ~768 MiB | hasta 4 | `-O2 -pipe -march=native -mtune=native` |
 | `link` | enlaces grandes (libLLVM.so, libxul) | — | 1 | — |
+
+Los valores de RAM por trabajo **están medidos**, no estimados: se compilaron
+ficheros reales de esta máquina midiendo su pico de RSS (`VmHWM`):
+
+| TU | pico |
+| --- | --- |
+| `llvm/lib/Transforms/InstCombine/InstructionCombining.cpp` | 384 MB |
+| `llvm/lib/CodeGen/MachineScheduler.cpp` | 382 MB |
+| `llvm/lib/Transforms/Vectorize/VectorCombine.cpp` | 360 MB |
+| `llvm/lib/CodeGen/MachineCombiner.cpp` | 273 MB |
+| `llvm/lib/Analysis/AliasAnalysis.cpp` | 230 MB |
+| `go/src/runtime/cgo/gcc_fatalf.c` | 74 MB |
+| `go/src/runtime/cgo/gcc_traceback.c` | 68 MB |
+
+De ahí salen los números con factor de seguridad (×2 para `heavy`, ×3 para
+`light`). El tope de 4 en `heavy` no es arbitrario: el enlace de un binario
+grande pide del orden de 3 GB y tiene que caber junto a los trabajos que
+sigan compilando; por eso la clase pesada nunca baja de 4 trabajos en esta
+máquina aunque la RAM disponible fluctúe.
 
 Los jobs reales salen de la RAM disponible del momento: se toma `MemAvailable`
 de `/proc/meminfo`, se le resta la reserva de 768 MiB que el propio script
