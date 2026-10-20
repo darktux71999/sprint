@@ -31,9 +31,22 @@ configure_ffmpeg() {
 }
 
 if [ "${FFMPEG_PGO:-0}" = 1 ]; then
-    # PGO al estilo GCC: instrumentar, entrenar y recompilar con el perfil.
+    # PGO con la interfaz de clang: -fprofile-generate escribe .profraw,
+    # llvm-profdata los fusiona en un .profdata y -fprofile-instr-use lo
+    # aplica. (La interfaz de gcc, con -fprofile-use y .gcda, no sirve aqui:
+    # el compilador del sistema es clang.)
     PROFILE_DIR="$PWD/pgo-profile"
+    PROF_DATA="$PROFILE_DIR/merged.profdata"
     mkdir -p "$PROFILE_DIR"
+
+    # Igual que en llvm: el runtime de perfil lo tiene que traer el
+    # toolchain (libclang_rt.profile.a), si no la pasada instrumentada no
+    # enlaza.
+    if ! ls /usr/lib/clang/*/lib/*/libclang_rt.profile.a >/dev/null 2>&1; then
+        echo "AVISO: el toolchain no trae libclang_rt.profile.a" >&2
+        echo "       el PGO de ffmpeg necesita un llvm con" >&2
+        echo "       COMPILER_RT_BUILD_PROFILE=ON" >&2
+    fi
 
     BASE_CFLAGS="$CFLAGS"
     BASE_CXXFLAGS="$CXXFLAGS"
@@ -49,8 +62,8 @@ if [ "${FFMPEG_PGO:-0}" = 1 ]; then
     make
 
     echo "-> PGO: entrenamiento"
-    # Los .gcda se escriben en PROFILE_DIR; la carga de trabajo debe pasar
-    # por los filtros y codificadores calientes.
+    # El ffmpeg instrumentado deja los .profraw en PROFILE_DIR. La carga debe
+    # pasar por los filtros y codificadores calientes.
     LD_LIBRARY_PATH="$(ls -d libav*/ 2>/dev/null | tr '\n' ':')${LD_LIBRARY_PATH:-}"
     export LD_LIBRARY_PATH
     ./ffmpeg -hide_banner -loglevel error \
@@ -59,19 +72,24 @@ if [ "${FFMPEG_PGO:-0}" = 1 ]; then
         -f lavfi -i sine=frequency=440:duration=1 -ac 2 -c:a pcm_s16le \
         -f null - 2>/dev/null || true
 
-    if ! ls "$PROFILE_DIR"/*.gcda >/dev/null 2>&1; then
-        echo "AVISO: el entrenamiento no produjo perfiles; se sigue sin PGO" >&2
+    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
+        llvm-profdata merge -output="$PROF_DATA" "$PROFILE_DIR"/*.profraw
     fi
 
-    echo "-> PGO: segunda pasada con el perfil"
-    make clean
-    CFLAGS="$BASE_CFLAGS -fprofile-use=$PROFILE_DIR -fprofile-correction -Wno-missing-profile"
-    CXXFLAGS="$BASE_CXXFLAGS -fprofile-use=$PROFILE_DIR -fprofile-correction -Wno-missing-profile"
-    LDFLAGS="$BASE_LDFLAGS"
-    export CFLAGS CXXFLAGS LDFLAGS
+    if [ -f "$PROF_DATA" ]; then
+        echo "-> PGO: segunda pasada con el perfil"
+        make clean
+        CFLAGS="$BASE_CFLAGS -fprofile-instr-use=$PROF_DATA"
+        CXXFLAGS="$BASE_CXXFLAGS -fprofile-instr-use=$PROF_DATA"
+        LDFLAGS="$BASE_LDFLAGS"
+        export CFLAGS CXXFLAGS LDFLAGS
 
-    configure_ffmpeg
-    make
+        configure_ffmpeg
+        make
+    else
+        echo "AVISO: no se ha generado ningun perfil; se instala el build" \
+            "instrumentado sin PGO" >&2
+    fi
 else
     configure_ffmpeg
     make

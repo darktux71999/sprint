@@ -50,11 +50,10 @@ find . -type d -a -name testdata |
         rm -rf "$dir"
     done
 
-# KISS genera el manifiesto pasando cada fichero del paquete por ldd. Los
-# testdata de debug/elf son ELF deliberadamente corruptos y ldd (el loader de
-# musl) muere con SIGSEGV sobre ellos, lo que aborta la instalacion. No se
-# instalan.
-find "$1/usr/lib/go/src" -type d -a -name testdata |
-    while read -r dir; do
-        rm -rf "$dir"
-    done
+# KISS genera el manifiesto pasando cada fichero del paquete por ldd, y el
+# loader de musl muere con SIGSEGV sobre los ELF deliberadamente corruptos de
+# debug/elf/testdata. Esos fixtures son binarios invalidos a proposito (datos
+# de prueba del parser de ELF), no algo que el paquete deba llevar, asi que no
+# se instalan. El resto de testdata del GOROOT si se conserva: lo necesitan
+# los tests de la biblioteca estandar.
+rm -rf "$1/usr/lib/go/src/debug/elf/testdata"

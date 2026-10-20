@@ -9,6 +9,9 @@ for patch in *.patch; do
     patch -p1 < "$patch"
 done
 
+# Raíz del código fuente: el directorio actual al empezar. Se usa para
+# localizar el corpus de entrenamiento sin depender del directorio actual.
+SRC_ROOT="$PWD"
 
 # 2. Preparar entorno
 # Krak3n usa el monorepo (llvm-project), así que entramos en la carpeta llvm.
@@ -18,16 +21,29 @@ done
 HOST_TRIPLE="x86_64-pc-linux-musl"
 
 # 2.1 Jobs de compilacion.
-# La clase heavy reserva ~1,8 GB por trabajo (ver docs/build-optimization.md).
-# Sin este tope cmake usa nproc (16 en esta maquina) y el enlazado de
-# libLLVM.so se come la RAM y cuelga el sistema. LLVM_JOBS lo sobrescribe.
+# Modelo de la clase `heavy` de tools/build-class.sh (esa herramienta es la
+# definicion canonica; aqui se replican sus numeros porque una receta no
+# puede llamarla: durante el build el directorio actual es el de compilacion).
+#   heavy: ~1800 MiB por trabajo, tope 6.
+# LLVM_JOBS lo sobrescribe, pero se valida y se acota igual.
+HEAVY_RESERVE_KB=786432     # 768 MiB de reserva para el sistema
+HEAVY_JOB_KB=1843200        # 1800 MiB por trabajo
+HEAVY_MAX_JOBS=6
+
 if [ -n "${LLVM_JOBS:-}" ]; then
     jobs=$LLVM_JOBS
-else
+    case $jobs in
+        ''|*[!0-9]*)
+            echo "AVISO: LLVM_JOBS no es un numero; se ignora" >&2
+            jobs=
+            ;;
+    esac
+fi
+if [ -z "${jobs:-}" ]; then
     mem_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
-    jobs=$(( (mem_kb - 786432) / 1843200 ))
+    jobs=$(( (mem_kb - HEAVY_RESERVE_KB) / HEAVY_JOB_KB ))
     [ "$jobs" -ge 1 ] || jobs=1
-    [ "$jobs" -le 6 ] || jobs=6
+    [ "$jobs" -le "$HEAVY_MAX_JOBS" ] || jobs=$HEAVY_MAX_JOBS
 fi
 echo "Jobs de compilacion: $jobs"
 
@@ -70,30 +86,46 @@ configure() {
         -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
         -DCOMPILER_RT_BUILD_XRAY=OFF \
         -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
-        -DCOMPILER_RT_BUILD_PROFILE=OFF \
+        -DCOMPILER_RT_BUILD_PROFILE=ON \
         -Wno-dev \
         "$@"
 }
 
-# 2.3 Carga de trabajo de entrenamiento: se compilan ficheros C con el
-# compilador dado para que el perfil cubra el frontend y el optimizador.
-# Los .profraw se dejan donde marque LLVM_PROFILE_FILE.
-train() {
+# 2.3 Corpus de entrenamiento: ficheros C que se compilan para que el perfil
+# cubra el frontend y el optimizador. Se usan fuentes del propio LLVM y, si
+# existen, del GOROOT instalado.
+training_files() {
+    find "$SRC_ROOT/llvm/utils" -name '*.c' 2>/dev/null | head -20
+    find /usr/lib/go/src/runtime -name '*.c' 2>/dev/null | head -20
+}
+
+# 2.4 Entrenamiento PGO: compila el corpus con el clang instrumentado. Cada
+# compilacion deja un .profraw en el directorio de perfiles.
+pgo_train() {
     cc=$1
     profdir=$2
-    shift 2
     n=0
-    for f in $(find /usr/lib/go/src/runtime -name '*.c' 2>/dev/null | head -20) \
-             $(find ../llvm/utils -name '*.c' 2>/dev/null | head -20)
-    do
+    for f in $(training_files); do
         LLVM_PROFILE_FILE="$profdir/%p-%m.profraw" "$cc" -c -O2 \
-            -I/usr/lib/go/src/runtime -o /dev/null "$f" 2>/dev/null || continue
+            -I"$SRC_ROOT/llvm/include" -I/usr/lib/go/src/runtime \
+            -o /dev/null "$f" 2>/dev/null || continue
         n=$((n + 1))
     done
     echo "Ficheros de entrenamiento compilados: $n"
-    if [ "$n" -eq 0 ]; then
-        echo "AVISO: entrenamiento vacio; el PGO no aportara nada" >&2
-    fi
+}
+
+# 2.5 Entrenamiento BOLT: el binario instrumentado por BOLT escribe su
+# prof.fdata en el directorio actual. No es un perfil PGO, asi que aqui no se
+# toca LLVM_PROFILE_FILE.
+bolt_train() {
+    bin=$1
+    n=0
+    for f in $(training_files); do
+        "$bin" -c -O2 -I"$SRC_ROOT/llvm/include" -I/usr/lib/go/src/runtime \
+            -o /dev/null "$f" 2>/dev/null || continue
+        n=$((n + 1))
+    done
+    echo "Ficheros de entrenamiento para BOLT: $n"
 }
 
 # NOTA SOBRE SANITIZERS: Krak3n los tiene en ON, pero en un bootstrap inicial
@@ -105,36 +137,59 @@ mkdir -p build
 cd build
 
 if [ "${LLVM_PGO:-0}" = 1 ]; then
-    # 3.1 Primera pasada: compilador instrumentado.
+    # PGO con la interfaz de clang: -fprofile-generate escribe .profraw,
+    # llvm-profdata los fusiona en un .profdata y -fprofile-instr-use lo
+    # aplica. (Las opciones propias de LLVM, LLVM_ENABLE_PGO y
+    # LLVM_PGO_PROFILE_DIR, no existen en esta version: el cmake solo conoce
+    # LLVM_BUILD_INSTRUMENTED y LLVM_PROFDATA_FILE, y con lld la variante
+    # instrumentada no llega a la linea de enlace.)
     PROFILE_DIR="$PWD/pgo-profile"
+    PROF_DATA="$PROFILE_DIR/merged.profdata"
     mkdir -p "$PROFILE_DIR"
 
-    echo "-> PGO: primera pasada instrumentada"
-    configure -DLLVM_ENABLE_PGO=Instrument
-    cmake --build . -j "$jobs"
-
-    # 3.2 Entrenamiento: el clang instrumentado deja los .profraw aqui.
-    echo "-> PGO: entrenamiento"
-    cd ..
-    LLVM_PROFILE_FILE="$PROFILE_DIR/%p-%m.profraw" \
-        train "$PWD/build/bin/clang" "$PROFILE_DIR"
-    cd build
-
-    # 3.3 Fusionar los .profraw: LLVM en modo Use busca *.profdata.
-    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
-        "$PWD/bin/llvm-profdata" merge -output="$PROFILE_DIR/merged.profdata" \
-            "$PROFILE_DIR"/*.profraw
-    else
-        echo "AVISO: no hay perfiles que fusionar; se continua sin PGO" >&2
+    # El PGO necesita el runtime de perfil (libclang_rt.profile.a) en el
+    # toolchain que compila: sin el, la pasada instrumentada no enlaza
+    # (__llvm_profile_* sin resolver). Ese runtime lo trae un llvm ya
+    # construido con COMPILER_RT_BUILD_PROFILE=ON, asi que el PGO va en dos
+    # fases: primero un build normal que instale el runtime, despues este.
+    if ! ls /usr/lib/clang/*/lib/*/libclang_rt.profile.a >/dev/null 2>&1; then
+        echo "AVISO: el toolchain no trae libclang_rt.profile.a" >&2
+        echo "       construye primero llvm con COMPILER_RT_BUILD_PROFILE=ON" >&2
+        echo "       y despues relanza el build con LLVM_PGO=1" >&2
     fi
 
-    # 3.4 Segunda pasada: se recompila usando el perfil.
-    # El perfil ya esta fusionado, asi que se puede limpiar el build.
-    echo "-> PGO: segunda pasada con el perfil"
-    cmake --build . --target clean
-    rm -rf CMakeCache.txt CMakeFiles
-    configure -DLLVM_ENABLE_PGO=Use -DLLVM_PGO_PROFILE_DIR="$PROFILE_DIR"
+    echo "-> PGO: primera pasada instrumentada"
+    configure \
+        -DCMAKE_C_FLAGS="$CFLAGS -fprofile-generate=$PROFILE_DIR" \
+        -DCMAKE_CXX_FLAGS="$CXXFLAGS -fprofile-generate=$PROFILE_DIR" \
+        -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS -fprofile-generate=$PROFILE_DIR" \
+        -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS -fprofile-generate=$PROFILE_DIR"
     cmake --build . -j "$jobs"
+
+    echo "-> PGO: entrenamiento"
+    cd ..
+    pgo_train "$PWD/build/bin/clang" "$PROFILE_DIR"
+    cd build
+
+    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
+        "$PWD/bin/llvm-profdata" merge -output="$PROF_DATA" \
+            "$PROFILE_DIR"/*.profraw
+    fi
+
+    if [ -f "$PROF_DATA" ]; then
+        echo "-> PGO: segunda pasada con el perfil"
+        cmake --build . --target clean
+        rm -rf CMakeCache.txt CMakeFiles
+        configure \
+            -DCMAKE_C_FLAGS="$CFLAGS -fprofile-instr-use=$PROF_DATA" \
+            -DCMAKE_CXX_FLAGS="$CXXFLAGS -fprofile-instr-use=$PROF_DATA" \
+            -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS -fprofile-instr-use=$PROF_DATA" \
+            -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS -fprofile-instr-use=$PROF_DATA"
+        cmake --build . -j "$jobs"
+    else
+        echo "AVISO: no se ha generado ningun perfil; se instala el build" \
+            "instrumentado sin PGO" >&2
+    fi
 else
     configure
     cmake --build . -j "$jobs"
@@ -153,7 +208,7 @@ if [ "${LLVM_BOLT:-0}" = 1 ]; then
             echo "AVISO: BOLT no pudo instrumentar $bin" >&2
             continue
         fi
-        (cd bolt-fdata && train "$PWD/../bin/$bin.instr" .) || true
+        (cd bolt-fdata && bolt_train "$PWD/../bin/$bin.instr")
         if ! ls bolt-fdata/*.fdata >/dev/null 2>&1; then
             echo "AVISO: BOLT no recogio perfil de $bin" >&2
             continue

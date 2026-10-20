@@ -25,7 +25,7 @@ global rompe el sistema en cuanto toca un paquete de esta clase.
 | --- | --- | --- | --- | --- |
 | `light` | librerías C pequeñas, herramientas | ~400 MB | hasta `nproc` | `-O3 -pipe -march=native -mtune=native` |
 | `medium` | chawan, go, python | ~900 MB | hasta 8 | `-O2 -pipe -march=native -mtune=native` |
-| `heavy` | firefox, webkitgtk, llvm, mesa, kicad | ~1,8 GB | hasta 6 | `-O2 -pipe -march=native -mtune=native` |
+| `heavy` | firefox, webkitgtk, llvm, mesa, kicad, go | ~1,8 GB | hasta 6 | `-O2 -pipe -march=native -mtune=native` |
 | `link` | enlaces grandes (libLLVM.so, libxul) | — | 1 | — |
 
 Los jobs reales salen de la RAM disponible del momento: se toma `MemAvailable`
@@ -101,6 +101,33 @@ mozconfig, proyectos extra, PGO) va dentro del `build`:
   `tools/build-class.sh`: durante el build el directorio actual es el de
   compilación y no se conoce la ruta del repo).
 - `extra/ffmpeg/build`: PGO con `FFMPEG_PGO=1`.
+
+## PGO: cómo y en qué orden
+
+El PGO se hace con la interfaz de clang, no con la de gcc:
+
+```
+-fprofile-generate=<dir>   → escribe <dir>/*.profraw al ejecutar el binario
+llvm-profdata merge        → <dir>/merged.profdata
+-fprofile-instr-use=<archivo.profdata>  → aplica el perfil al recompilar
+```
+
+Dos requisitos que no son evidentes:
+
+1. **El toolchain necesita el runtime de perfil.** Sin
+   `libclang_rt.profile.a` la pasada instrumentada no enlaza (se queda con
+   `__llvm_profile_*` sin resolver). Por eso la receta de llvm construye
+   compiler-rt con `COMPILER_RT_BUILD_PROFILE=ON`.
+2. **Son dos builds, no uno.** El build instrumentado usa el clang ya
+   instalado, así que ese clang tiene que traer ya el runtime de perfil. El
+   orden correcto es:
+   1. `LLVM_PGO=0` (build normal, con el runtime) → instala el toolchain.
+   2. `LLVM_PGO=1` (build instrumentado → entrenamiento → recompilación con
+      el perfil) → instala el llvm con PGO.
+   3. `LLVM_BOLT=1` (instrumentación de BOLT → perfil → reordenado).
+
+Lo mismo aplica al PGO de ffmpeg (`FFMPEG_PGO=1`): necesita el runtime en el
+toolchain, así que va después del paso 1.
 
 ## Enlaces y LTO
 

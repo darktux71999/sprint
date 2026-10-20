@@ -1,7 +1,7 @@
 diff --git a/security/sandbox/linux/SandboxFilter.cpp b/security/sandbox/linux/SandboxFilter.cpp
 --- a/security/sandbox/linux/SandboxFilter.cpp
 +++ b/security/sandbox/linux/SandboxFilter.cpp
-@@ -1924,11 +1924,13 @@ class RDDSandboxPolicy final : public SandboxPolicyCommon {
+@@ -1924,11 +1924,13 @@
        // bug 2071378.
        case __NR_sched_getaffinity:
        case __NR_sched_getparam:
