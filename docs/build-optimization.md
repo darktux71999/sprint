@@ -28,11 +28,10 @@ global rompe el sistema en cuanto toca un paquete de esta clase.
 | `heavy` | firefox, webkitgtk, llvm, mesa, kicad | ~1,8 GB | hasta 6 | `-O2 -pipe -march=native -mtune=native` |
 | `link` | enlaces grandes (libLLVM.so, libxul) | — | 1 | — |
 
-Los jobs reales salen de la RAM disponible del momento:
-
-```sh
-jobs=$(( (MemAvailable - 768MiB) / RAM_por_trabajo ))   # acotado a [1, tope]
-```
+Los jobs reales salen de la RAM disponible del momento: se toma `MemAvailable`
+de `/proc/meminfo`, se le resta la reserva de 768 MiB que el propio script
+define como `reserve_kb`, y el resultado se divide entre la RAM estimada por
+trabajo de la clase, con topes por clase y un mínimo de 1.
 
 Uso desde el shell o desde un script de build:
 
@@ -58,8 +57,9 @@ tabla (el precedente del repo es `core/luajit/build`, que extiende `CFLAGS`).
 
 ## Estrategias anti-cuelgue
 
-1. **Nunca dos paquetes `heavy` a la vez.** Las tandas se serializan; dentro
-   de una tanda, los ligeros sí pueden solaparse.
+1. **Nunca dos paquetes `heavy` a la vez.** Las tandas se serializan: dentro
+   de una tanda, los trabajos de compilación de una clase pueden solaparse,
+   pero dos paquetes pesados distintos no se compilan a la vez.
 2. **`TMPDIR` en disco, no en `/tmp`.** `/tmp` es un tmpfs de solo 1 GB:
    firefox y rust escriben más de eso en temporales y fallan con ENOSPC (o
    llenan la RAM vía tmpfs). Para builds pesados:

@@ -41,6 +41,15 @@ check "light con RAM mínima se recorta a 1" 1 \
 check "light respeta nproc=2" 2 \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=2 "$tool" light jobs)"
 
+# Con RAM de sobra los topes de clase mandan sobre el cociente.
+BIG=67108864   # 64 GiB disponibles
+check "light con 64G tope en nproc" 16 \
+    "$(BUILD_CLASS_MEM_KB=$BIG BUILD_CLASS_NPROC=16 "$tool" light jobs)"
+check "medium con 64G tope en 8" 8 \
+    "$(BUILD_CLASS_MEM_KB=$BIG BUILD_CLASS_NPROC=16 "$tool" medium jobs)"
+check "heavy con 64G tope en 6" 6 \
+    "$(BUILD_CLASS_MEM_KB=$BIG BUILD_CLASS_NPROC=16 "$tool" heavy jobs)"
+
 # Flags por clase.
 check "light usa -O3" "-O3 -pipe -march=native -mtune=native" \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" light cflags)"
@@ -54,10 +63,20 @@ check "ldflags usa lld y limita hilos a 4" "-fuse-ld=lld -Wl,--threads=3 -Wl,-O2
 check "ldflags de light topea hilos en 4" "-fuse-ld=lld -Wl,--threads=4 -Wl,-O2 -Wl,-s" \
     "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" light ldflags)"
 
-# env emite las cuatro variables.
+# env emite las cuatro variables, y sus valores coinciden con los campos sueltos.
 env_out=$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium env)
-check "env exporta CFLAGS" 1 "$(printf '%s\n' "$env_out" | grep -c '^export CFLAGS=')"
-check "env exporta MAKEFLAGS" 1 "$(printf '%s\n' "$env_out" | grep -c '^export MAKEFLAGS=')"
+check "env exporta CFLAGS con el valor del campo" \
+    "export CFLAGS=\"$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium cflags)\"" \
+    "$(printf '%s\n' "$env_out" | grep '^export CFLAGS=')"
+check "env exporta CXXFLAGS con el valor del campo" \
+    "export CXXFLAGS=\"$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium cxxflags)\"" \
+    "$(printf '%s\n' "$env_out" | grep '^export CXXFLAGS=')"
+check "env exporta LDFLAGS con el valor del campo" \
+    "export LDFLAGS=\"$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium ldflags)\"" \
+    "$(printf '%s\n' "$env_out" | grep '^export LDFLAGS=')"
+check "env exporta MAKEFLAGS con el valor del campo" \
+    "export MAKEFLAGS=\"$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium makeflags)\"" \
+    "$(printf '%s\n' "$env_out" | grep '^export MAKEFLAGS=')"
 
 # Errores de uso: clase o campo desconocidos -> salida 2.
 rc=0; "$tool" no-such-class jobs >/dev/null 2>&1 || rc=$?

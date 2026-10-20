@@ -52,14 +52,18 @@ nproc=${BUILD_CLASS_NPROC:-$(nproc 2>/dev/null || echo 4)}
 
 # --- modelo por clase ------------------------------------------------------
 # ram_job_kb: RAM estimada por trabajo de compilación en paquetes de la clase.
+# cap: tope de trabajos simultáneos de esa clase.
+#   light  = 400 MiB por trabajo, tope nproc
+#   medium = 900 MiB por trabajo, tope 8
+#   heavy  = 1800 MiB por trabajo, tope 6
 case $class in
     light)  ram_job_kb=409600  cap=$nproc ;;
     medium) ram_job_kb=921600  cap=8 ;;
     heavy)  ram_job_kb=1843200 cap=6 ;;
-    link)   ram_job_kb=0       cap=1 ;;
 esac
 
 if [ "$class" = link ]; then
+    # El enlace grande es el que tumba la máquina: un solo trabajo.
     jobs=1
 else
     jobs=$((usable_kb / ram_job_kb))
@@ -68,8 +72,8 @@ else
 fi
 
 # Hilos de lld para el enlace: nunca más de 4 ni más que los trabajos.
+# jobs >= 1 siempre, así que lld_threads >= 1.
 lld_threads=$((jobs < 4 ? jobs : 4))
-[ "$lld_threads" -ge 1 ] || lld_threads=1
 
 # --- flags por clase -------------------------------------------------------
 base_cflags='-pipe -march=native -mtune=native'
@@ -95,5 +99,10 @@ case $field in
         printf 'export CXXFLAGS="%s"\n' "$cxxflags"
         printf 'export LDFLAGS="%s"\n' "$ldflags"
         printf 'export MAKEFLAGS="%s"\n' "$makeflags"
+        ;;
+    *)
+        # La validación de arriba ya lo impide; este caso evita que un
+        # campo nuevo que se añadiera solo a la lista se quede mudo.
+        die "campo desconocido: $field"
         ;;
 esac

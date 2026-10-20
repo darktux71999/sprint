@@ -15,7 +15,12 @@ WORK="${WEBKIT_BUILD_DIR:-$HOME/webkit-build}"
 VER="$(cut -d' ' -f1 "$RECIPE/version")"
 TARBALL="$HOME/.cache/kiss/sources/webkitgtk/webkitgtk-$VER.tar.xz"
 SRCDIR="$WORK/webkitgtk-$VER"
-JOBS="${JOBS:-$("$SPRINT/tools/build-class.sh" heavy jobs)}"
+if [ -z "${JOBS:-}" ]; then
+	JOBS=$("$SPRINT/tools/build-class.sh" heavy jobs) || {
+		echo "No se pudo calcular JOBS con tools/build-class.sh" >&2
+		exit 1
+	}
+fi
 
 apply_patches() {
 	cd "$SRCDIR"
