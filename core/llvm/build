@@ -17,62 +17,163 @@ done
 # Definimos el Triple para asegurar que LLVM sepa que es nativo musl
 HOST_TRIPLE="x86_64-pc-linux-musl"
 
-# 3. Configuración (Adaptada de Krak3n para KISS)
-mkdir -p build
-cd build
+# 2.1 Jobs de compilacion.
+# La clase heavy reserva ~1,8 GB por trabajo (ver docs/build-optimization.md).
+# Sin este tope cmake usa nproc (16 en esta maquina) y el enlazado de
+# libLLVM.so se come la RAM y cuelga el sistema. LLVM_JOBS lo sobrescribe.
+if [ -n "${LLVM_JOBS:-}" ]; then
+    jobs=$LLVM_JOBS
+else
+    mem_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+    jobs=$(( (mem_kb - 786432) / 1843200 ))
+    [ "$jobs" -ge 1 ] || jobs=1
+    [ "$jobs" -le 6 ] || jobs=6
+fi
+echo "Jobs de compilacion: $jobs"
 
-echo "Directorio actual: $(pwd)"
-echo "Buscando CMakeLists.txt en ../llvm..."
-ls -l ../llvm/CMakeLists.txt || echo "¡ALERTA! No se encuentra CMakeLists.txt en ../llvm"
+# 2.2 Configuracion de cmake (Krak3n, adaptada a KISS).
+# "$@" son las opciones extra de esta pasada (PGO).
+configure() {
+    cmake -S ../llvm \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_HOST_TRIPLE="$HOST_TRIPLE" \
+        -DLLVM_DEFAULT_TARGET_TRIPLE="$HOST_TRIPLE" \
+        -DLLVM_TARGETS_TO_BUILD="X86;AMDGPU;BPF" \
+        -DLLVM_BUILD_LLVM_DYLIB=ON \
+        -DLLVM_LINK_LLVM_DYLIB=ON \
+        -DLLVM_ENABLE_RTTI=ON \
+        -DLLVM_ENABLE_EH=ON \
+        -DLLVM_ENABLE_LLD=ON \
+        -DLLVM_INSTALL_BINUTILS_SYMLINKS=ON \
+        -DLLVM_ENABLE_PROJECTS="clang;lld;bolt" \
+        -DLLVM_ENABLE_RUNTIMES="compiler-rt;libunwind;libcxx;libcxxabi" \
+        -DLLVM_INCLUDE_BENCHMARKS=OFF \
+        -DLLVM_INCLUDE_EXAMPLES=OFF \
+        -DLLVM_INCLUDE_DOCS=OFF \
+        -DLLVM_INCLUDE_TESTS=OFF \
+        -DLLVM_ENABLE_LIBXML2=OFF \
+        -DCLANG_DEFAULT_RTLIB=compiler-rt \
+        -DCLANG_DEFAULT_UNWINDLIB=libunwind \
+        -DCLANG_DEFAULT_CXX_STDLIB=libc++ \
+        -DCLANG_DEFAULT_LINKER=lld \
+        -DCLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
+        -DLIBCLANG_BUILD_STATIC=ON \
+        -DLIBCXX_HAS_MUSL_LIBC=ON \
+        -DLIBCXX_USE_COMPILER_RT=ON \
+        -DLIBCXX_CXX_ABI=libcxxabi \
+        -DLIBCXXABI_USE_LLVM_UNWINDER=ON \
+        -DLIBCXXABI_USE_COMPILER_RT=ON \
+        -DLIBUNWIND_USE_COMPILER_RT=ON \
+        -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON \
+        -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
+        -DCOMPILER_RT_BUILD_XRAY=OFF \
+        -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
+        -DCOMPILER_RT_BUILD_PROFILE=OFF \
+        -Wno-dev \
+        "$@"
+}
 
-cmake -S ../llvm \
-    -DCMAKE_INSTALL_PREFIX=/usr \
-    -DCMAKE_INSTALL_LIBDIR=lib \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_HOST_TRIPLE="$HOST_TRIPLE" \
-    -DLLVM_DEFAULT_TARGET_TRIPLE="$HOST_TRIPLE" \
-    -DLLVM_TARGETS_TO_BUILD="X86;AMDGPU;BPF" \
-    -DLLVM_BUILD_LLVM_DYLIB=ON \
-    -DLLVM_LINK_LLVM_DYLIB=ON \
-    -DLLVM_ENABLE_RTTI=ON \
-    -DLLVM_ENABLE_EH=ON \
-    -DLLVM_ENABLE_LLD=ON \
-    -DLLVM_INSTALL_BINUTILS_SYMLINKS=ON \
-    -DLLVM_ENABLE_PROJECTS="clang;lld" \
-    -DLLVM_ENABLE_RUNTIMES="compiler-rt;libunwind;libcxx;libcxxabi" \
-    -DLLVM_INCLUDE_BENCHMARKS=OFF \
-    -DLLVM_INCLUDE_EXAMPLES=OFF \
-    -DLLVM_INCLUDE_DOCS=OFF \
-    -DLLVM_INCLUDE_TESTS=OFF \
-    -DLLVM_ENABLE_LIBXML2=OFF \
-    -DCLANG_DEFAULT_RTLIB=compiler-rt \
-    -DCLANG_DEFAULT_UNWINDLIB=libunwind \
-    -DCLANG_DEFAULT_CXX_STDLIB=libc++ \
-    -DCLANG_DEFAULT_LINKER=lld \
-    -DCLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang \
-    -DLIBCLANG_BUILD_STATIC=ON \
-    -DLIBCXX_HAS_MUSL_LIBC=ON \
-    -DLIBCXX_USE_COMPILER_RT=ON \
-    -DLIBCXX_CXX_ABI=libcxxabi \
-    -DLIBCXXABI_USE_LLVM_UNWINDER=ON \
-    -DLIBCXXABI_USE_COMPILER_RT=ON \
-    -DLIBUNWIND_USE_COMPILER_RT=ON \
-    -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON \
-    -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
-    -DCOMPILER_RT_BUILD_XRAY=OFF \
-    -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
-    -DCOMPILER_RT_BUILD_PROFILE=OFF \
-    -Wno-dev
+# 2.3 Carga de trabajo de entrenamiento: se compilan ficheros C con el
+# compilador dado para que el perfil cubra el frontend y el optimizador.
+# Los .profraw se dejan donde marque LLVM_PROFILE_FILE.
+train() {
+    cc=$1
+    profdir=$2
+    shift 2
+    n=0
+    for f in $(find /usr/lib/go/src/runtime -name '*.c' 2>/dev/null | head -20) \
+             $(find ../llvm/utils -name '*.c' 2>/dev/null | head -20)
+    do
+        LLVM_PROFILE_FILE="$profdir/%p-%m.profraw" "$cc" -c -O2 \
+            -I/usr/lib/go/src/runtime -o /dev/null "$f" 2>/dev/null || continue
+        n=$((n + 1))
+    done
+    echo "Ficheros de entrenamiento compilados: $n"
+    if [ "$n" -eq 0 ]; then
+        echo "AVISO: entrenamiento vacio; el PGO no aportara nada" >&2
+    fi
+}
 
 # NOTA SOBRE SANITIZERS: Krak3n los tiene en ON, pero en un bootstrap inicial
 # con musl puro suelen fallar por falta de rpc/xdr.h.
 # Los he puesto en OFF para asegurar el éxito del build.
 
-# 4. Compilar e Instalar
-cmake --build .
+# 3. Build
+mkdir -p build
+cd build
+
+if [ "${LLVM_PGO:-0}" = 1 ]; then
+    # 3.1 Primera pasada: compilador instrumentado.
+    PROFILE_DIR="$PWD/pgo-profile"
+    mkdir -p "$PROFILE_DIR"
+
+    echo "-> PGO: primera pasada instrumentada"
+    configure -DLLVM_ENABLE_PGO=Instrument
+    cmake --build . -j "$jobs"
+
+    # 3.2 Entrenamiento: el clang instrumentado deja los .profraw aqui.
+    echo "-> PGO: entrenamiento"
+    cd ..
+    LLVM_PROFILE_FILE="$PROFILE_DIR/%p-%m.profraw" \
+        train "$PWD/build/bin/clang" "$PROFILE_DIR"
+    cd build
+
+    # 3.3 Fusionar los .profraw: LLVM en modo Use busca *.profdata.
+    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
+        "$PWD/bin/llvm-profdata" merge -output="$PROFILE_DIR/merged.profdata" \
+            "$PROFILE_DIR"/*.profraw
+    else
+        echo "AVISO: no hay perfiles que fusionar; se continua sin PGO" >&2
+    fi
+
+    # 3.4 Segunda pasada: se recompila usando el perfil.
+    # El perfil ya esta fusionado, asi que se puede limpiar el build.
+    echo "-> PGO: segunda pasada con el perfil"
+    cmake --build . --target clean
+    rm -rf CMakeCache.txt CMakeFiles
+    configure -DLLVM_ENABLE_PGO=Use -DLLVM_PGO_PROFILE_DIR="$PROFILE_DIR"
+    cmake --build . -j "$jobs"
+else
+    configure
+    cmake --build . -j "$jobs"
+fi
+
+# 4. BOLT: reordenar el codigo de los binarios con un perfil real.
+# Modo instrumentacion: no hace falta perf (que no esta instalado).
+if [ "${LLVM_BOLT:-0}" = 1 ]; then
+    echo "-> BOLT: instrumentando y reordenando los binarios"
+    BOLT="$PWD/bin/llvm-bolt"
+    for bin in clang clang++ lld ld.lld; do
+        [ -x "$PWD/bin/$bin" ] || continue
+        rm -rf bolt-fdata && mkdir -p bolt-fdata
+        if ! "$BOLT" "$PWD/bin/$bin" -instrument -o "$PWD/bin/$bin.instr" \
+            -j "$jobs"; then
+            echo "AVISO: BOLT no pudo instrumentar $bin" >&2
+            continue
+        fi
+        (cd bolt-fdata && train "$PWD/../bin/$bin.instr" .) || true
+        if ! ls bolt-fdata/*.fdata >/dev/null 2>&1; then
+            echo "AVISO: BOLT no recogio perfil de $bin" >&2
+            continue
+        fi
+        "$BOLT" merge-fdata -o "$PWD/bin/$bin.fdata" bolt-fdata/*.fdata || continue
+        if ! "$BOLT" "$PWD/bin/$bin" -data="$PWD/bin/$bin.fdata" \
+            -o "$PWD/bin/$bin.bolt" -j "$jobs"; then
+            echo "AVISO: BOLT no pudo reordenar $bin" >&2
+            continue
+        fi
+        mv -f "$PWD/bin/$bin.bolt" "$PWD/bin/$bin"
+        rm -f "$PWD/bin/$bin.instr" "$PWD/bin/$bin.fdata"
+    done
+    rm -rf bolt-fdata
+fi
+
+# 5. Instalar
 cmake --install .
 
-# 5. Post-instalación: Enlaces simbólicos (Reemplazo de GCC/Binutils)
+# 6. Post-instalación: Enlaces simbólicos (Reemplazo de GCC/Binutils)
 cd "$1/usr/bin"
 
 # Enlaces para que el sistema crea que tiene GCC/Binutils
@@ -81,6 +182,5 @@ ln -sf clang cc
 ln -sf clang gcc
 ln -sf clang cpp
 ln -sf clang++ c++
-ln -sf clang++ g++
 
 # Scripts c89/c99 (Opcional, si los tienes en sources instalalos, si no, omite)

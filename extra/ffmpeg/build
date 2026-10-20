@@ -1,34 +1,82 @@
 #!/bin/sh -e
 
-./configure \
-    --cc="$CC" \
-    --cxx="$CXX" \
-    --prefix=/usr \
-    --disable-debug \
-    --disable-libxml2 \
-    --disable-static \
-    --enable-gpl \
-    --enable-libass \
-    --enable-libdrm \
-    --enable-libmp3lame \
-    --enable-libopus \
-    --enable-libvorbis \
-    --enable-libvpx \
-    --enable-libwebp \
-    --enable-libx264 \
-    --enable-libx265 \
-    --enable-libxvid \
-    --enable-libdav1d \
-    --enable-nonfree \
-    --enable-openssl \
-    --enable-shared \
-    --enable-version3 \
-    --enable-vaapi \
-    --enable-runtime-cpudetect \
-    --x86asmexe=nasm
+# Configuracion comun (se reutiliza en la segunda pasada de PGO).
+configure_ffmpeg() {
+    ./configure \
+        --cc="$CC" \
+        --cxx="$CXX" \
+        --prefix=/usr \
+        --disable-debug \
+        --disable-libxml2 \
+        --disable-static \
+        --enable-gpl \
+        --enable-libass \
+        --enable-libdrm \
+        --enable-libmp3lame \
+        --enable-libopus \
+        --enable-libvorbis \
+        --enable-libvpx \
+        --enable-libwebp \
+        --enable-libx264 \
+        --enable-libx265 \
+        --enable-libxvid \
+        --enable-libdav1d \
+        --enable-nonfree \
+        --enable-openssl \
+        --enable-shared \
+        --enable-version3 \
+        --enable-vaapi \
+        --enable-runtime-cpudetect \
+        --x86asmexe=nasm
+}
 
+if [ "${FFMPEG_PGO:-0}" = 1 ]; then
+    # PGO al estilo GCC: instrumentar, entrenar y recompilar con el perfil.
+    PROFILE_DIR="$PWD/pgo-profile"
+    mkdir -p "$PROFILE_DIR"
 
-make
+    BASE_CFLAGS="$CFLAGS"
+    BASE_CXXFLAGS="$CXXFLAGS"
+    BASE_LDFLAGS="$LDFLAGS"
+
+    echo "-> PGO: primera pasada instrumentada"
+    CFLAGS="$BASE_CFLAGS -fprofile-generate=$PROFILE_DIR"
+    CXXFLAGS="$BASE_CXXFLAGS -fprofile-generate=$PROFILE_DIR"
+    LDFLAGS="$BASE_LDFLAGS -fprofile-generate=$PROFILE_DIR"
+    export CFLAGS CXXFLAGS LDFLAGS
+
+    configure_ffmpeg
+    make
+
+    echo "-> PGO: entrenamiento"
+    # Los .gcda se escriben en PROFILE_DIR; la carga de trabajo debe pasar
+    # por los filtros y codificadores calientes.
+    LD_LIBRARY_PATH="$(ls -d libav*/ 2>/dev/null | tr '\n' ':')${LD_LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH
+    ./ffmpeg -hide_banner -loglevel error \
+        -f lavfi -i testsrc2=size=320x240:rate=10 -t 1 -f null - 2>/dev/null || true
+    ./ffmpeg -hide_banner -loglevel error \
+        -f lavfi -i sine=frequency=440:duration=1 -ac 2 -c:a pcm_s16le \
+        -f null - 2>/dev/null || true
+
+    if ! ls "$PROFILE_DIR"/*.gcda >/dev/null 2>&1; then
+        echo "AVISO: el entrenamiento no produjo perfiles; se sigue sin PGO" >&2
+    fi
+
+    echo "-> PGO: segunda pasada con el perfil"
+    make clean
+    CFLAGS="$BASE_CFLAGS -fprofile-use=$PROFILE_DIR -fprofile-correction -Wno-missing-profile"
+    CXXFLAGS="$BASE_CXXFLAGS -fprofile-use=$PROFILE_DIR -fprofile-correction -Wno-missing-profile"
+    LDFLAGS="$BASE_LDFLAGS"
+    export CFLAGS CXXFLAGS LDFLAGS
+
+    configure_ffmpeg
+    make
+else
+    configure_ffmpeg
+    make
+fi
+
 make DESTDIR="$1" install
 
 rm -rf "$1/usr/share/ffmpeg/examples"
