@@ -98,11 +98,84 @@ proc=${proc%"${proc##*[!/]}"}/${KISS_PROC_SUFFIX:-$KISS_PID}
 y exportar `KISS_PROC_SUFFIX=stable`. Es equivalente a fijar `KISS_PID`, pero
 queda embebido en el gestor; requiere mantener el parche al actualizar kiss.
 
-## Estado: aplicado (2026-09-28)
+## Cómo hacer que ccache participe (sin romper CMake)
 
-- `~/.mkshrc`: añadido `export KISS_PID="stable"` (bloque "Entorno de
-  construcción de Sprint"). Todos los builds futuros usan
-  `~/.cache/kiss/proc/stable/...` y ccache reutiliza objetos entre ellos.
+Fijar `KISS_PID` solo evita la invalidación por rutas. Falta que el compilador
+pase por ccache. Hay dos vías y **una de ellas rompe CMake**:
+
+### ❌ NO usar los wrappers en PATH con CMake
+
+Poner `/usr/lib/ccache/bin` al frente de `PATH` hace que CMake, con
+`-DCMAKE_C_COMPILER=clang`, resuelva `clang` al symlink y lo reduzca a
+`/usr/bin/ccache`. Después invoca `ccache -O1 ... -c file.c` **sin el nombre
+del compilador**, y ccache interpreta `-O1` como opción propia:
+
+```
+-- Check for working C compiler: /usr/bin/ccache - broken
+/usr/bin/ccache: unrecognized option: O
+CMake Error ... is not able to compile a simple test program.
+```
+
+Con `-DCMAKE_C_COMPILER=ccache` (lo que se probó en la receta) pasa lo mismo:
+ccache necesita el compilador como primer argumento. **Revertido.**
+
+### ✅ La forma correcta en CMake: `COMPILER_LAUNCHER`
+
+En `extra/webkitgtk/build` (y cualquier paquete basado en CMake):
+
+```sh
+	-DCMAKE_C_COMPILER=clang \
+	-DCMAKE_CXX_COMPILER=clang++ \
+	-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+	-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+```
+
+CMake invoca entonces `ccache /usr/bin/clang ...`, que es lo que ccache espera.
+Para paquetes con `make`/autotools sí sirve `CC="ccache clang"` o los wrappers
+en `PATH`; el problema es específico de cómo CMake resuelve el compilador.
+
+## Tamaño del cache
+
+`CCACHE_MAXSIZE` subido de `10G` a `100G` (hay ~1.7 T libres en `/`). WebKit y
+LLVM por sí solos generan bastante más de 10 G de objetos, así que 10 G
+provocaba expulsión por LRU y hits solo parciales.
+
+## Alternativa (mejor para paquetes enormes): árbol persistente
+
+ccache no resuelve del todo WebKit: aunque esté activo, puede no retener todos
+sus objetos. Para parches pequeños, lo más rápido es compilar con el árbol de
+CMake/ninja **persistente** y dejar que ninja recompile solo lo afectado:
+
+```sh
+# primera vez (una sola)
+mkdir -p ~/webkit-build && cd ~/webkit-build
+# extraer fuente + aplicar los patches/ (los mismos que la receta)
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+      -DCMAKE_C_COMPILER_TARGET=x86_64-pc-linux-musl \
+      -DCMAKE_CXX_COMPILER_TARGET=x86_64-pc-linux-musl \
+      -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+      -DPORT=GTK -DUSE_GTK4=OFF -DUSE_SOUP2=OFF -DENABLE_X11_TARGET=ON
+ninja -C build -j16          # ~1 h la primera vez
+
+# después de cambiar un parche
+ninja -C build -j16          # solo lo afectado + enlace: minutos
+```
+
+Regla: parchear un `.cpp` recompila 1 fichero; parchear un **header** recompila
+todos sus dependientes. Por eso `NonCompositedFrameRenderer.h` es barato y
+`FrameRenderer.h` sería más caro.
+
+## Estado: aplicado (2026-09-28, actualizado 2026-10-14)
+
+- `~/.mkshrc`: `export KISS_PID="stable"` (bloque "Entorno de construcción de
+  Sprint"). Todos los builds futuros usan `~/.cache/kiss/proc/stable/...` y
+  ccache reutiliza objetos entre ellos.
+- `~/.mkshrc` (2026-10-14): `CCACHE_MAXSIZE="100G"`.
+- `extra/webkitgtk/build` (2026-10-14): `-DCMAKE_C_COMPILER=clang` +
+  `-DCMAKE_C_COMPILER_LAUNCHER=ccache` (antes estaba `-DCMAKE_C_COMPILER=ccache`,
+  que rompía la configuración de CMake). El `PATH` con los wrappers se probó y
+  se **revirtió** (rompe CMake).
 - `~/.cache/ccache/ccache.conf`: retirado `base_dir = /home/darktux`
   (no aportaba y invalidaba las claves del cache).
 
