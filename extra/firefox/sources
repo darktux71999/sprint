@@ -18,3 +18,4 @@ patches/fix-webrtc-pid_t.patch
 patches/wasip1.patch
 patches/x11lol.patch
 patches/x86_64-Fix-stack-alignment-in-breakpad_getcontext.S.patch
+patches/audio_thread_priority-musl-pthread-id.patch
