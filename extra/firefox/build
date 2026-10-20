@@ -29,6 +29,14 @@ export CXXFLAGS="$CXXFLAGS -w"
 # change them to relative paths ($PWD/... ./...).
 export RUSTFLAGS="$RUSTFLAGS --remap-path-prefix=$PWD=."
 
+# Flags de Rust del motor. Sin -C target-cpu (viene del entorno:
+# -C target-cpu=x86-64-v3) el motor se compila para la baseline generica
+# x86-64 y se pierde el AVX2 de la CPU. FIREFOX_RUST_EXTRA_FLAGS permite
+# anadir mas (por ejemplo -Ccodegen-units=1, que mejora el codegen a costa de
+# tiempo y RAM de compilacion).
+[ -n "${FIREFOX_RUST_EXTRA_FLAGS:-}" ] &&
+    export RUSTFLAGS="$RUSTFLAGS $FIREFOX_RUST_EXTRA_FLAGS"
+
 export LDFLAGS="$LDFLAGS -Wl,-rpath=/usr/lib/firefox,--enable-new-dtags"
 export RUSTFLAGS="$RUSTFLAGS -Cdebuginfo=0"
 export MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=system
@@ -36,7 +44,12 @@ export MOZ_DEBUG_FLAGS=-g0
 export MOZBUILD_STATE_PATH="$PWD/state"
 export MOZ_NOSPAM=1
 
-cat > .mozconfig << EOF
+# .mozconfig: la base de siempre, mas las opciones de PGO de la pasada que
+# toque (Mozilla trae soporte nativo: --enable-profile-generate y
+# --enable-profile-use; en modo "cross" el perfil alcanza tambien al motor
+# de Rust).
+write_mozconfig() {
+    cat > .mozconfig << EOF
 ac_add_options --prefix=/usr
 ac_add_options --libdir=/usr/lib
 ac_add_options --enable-strip
@@ -49,7 +62,10 @@ ac_add_options --enable-application=browser
 # Build the GTK frontend with X11 only; do not autodetect or enable Wayland.
 ac_add_options --enable-default-toolkit=cairo-gtk3-x11-only
 ac_add_options --enable-optimize
-ac_add_options --enable-lto=thin
+# LTO: thin por defecto. Con "cross" el motor de Rust entra tambien en el
+# LTO (MOZ_LTO_RUST_CROSS), que es lo que hace que el motor quede optimizado
+# de verdad. FIREFOX_LTO lo sobreescribe (p.ej. "thin,cross").
+ac_add_options --enable-lto=${FIREFOX_LTO:-thin}
 ac_add_options --with-system-ffi
 ac_add_options --with-system-jpeg
 ac_add_options --with-system-libvpx
@@ -78,8 +94,64 @@ ac_add_options --disable-debug-symbols
 ac_add_options --disable-parental-controls
 ac_add_options --disable-system-extension-dirs
 EOF
+    case ${1:-base} in
+        generate)
+            cat >> .mozconfig << EOF
+ac_add_options --enable-profile-generate=cross
+EOF
+            ;;
+        use)
+            cat >> .mozconfig << EOF
+ac_add_options --enable-profile-use=cross
+ac_add_options --with-pgo-profile-path=$PROF_DATA
+EOF
+            ;;
+    esac
+}
 
-./mach build "${MAKEFLAGS:-}"
+if [ "${FIREFOX_PGO:-0}" = 1 ]; then
+    # 1) Pasada instrumentada. Mozilla construye el binario instrumentado en
+    #    obj-*/instrumented/ y deja ahi el perfil.
+    echo "-> PGO: pasada instrumentada"
+    write_mozconfig generate
+    ./mach build "${MAKEFLAGS:-}"
+
+    # 2) Entrenamiento: el binario instrumentado deja el perfil al ejecutarse.
+    PROFILE_HTML="$PWD/pgo-workload.html"
+    printf '<html><body><h1>pgo</h1><script>for (let i=0;i<2e5;i++);</script></body></html>\n' \
+        > "$PROFILE_HTML"
+    INSTR_FIREFOX=$(find . -maxdepth 5 -path '*instrumented*/dist/bin/firefox' -type f 2>/dev/null | head -1)
+    if [ -n "$INSTR_FIREFOX" ]; then
+        echo "-> PGO: entrenamiento con $INSTR_FIREFOX"
+        MOZ_HEADLESS=1 "$INSTR_FIREFOX" --headless \
+            --screenshot "$PWD/pgo-shot.png" "file://$PROFILE_HTML" >/dev/null 2>&1 || true
+    else
+        echo "AVISO: no se encuentra el firefox instrumentado; sin PGO" >&2
+    fi
+
+    # 3) Fusionar: llvm-profdata convierte los .profraw en el merged.profdata
+    #    que espera --with-pgo-profile-path.
+    PROF_RAW=$(find . -maxdepth 5 -name '*.profraw' -path '*instrumented*' 2>/dev/null | head -1)
+    PROF_DATA=
+    if [ -n "$PROF_RAW" ]; then
+        PROF_DIR=$(dirname "$PROF_RAW")
+        PROF_DATA="$PROF_DIR/merged.profdata"
+        llvm-profdata merge -output="$PROF_DATA" "$PROF_DIR"/*.profraw
+    fi
+
+    if [ -n "$PROF_DATA" ] && [ -f "$PROF_DATA" ]; then
+        # 4) Pasada final: se recompila usando el perfil.
+        echo "-> PGO: pasada final con el perfil"
+        write_mozconfig use
+        ./mach build "${MAKEFLAGS:-}"
+    else
+        echo "AVISO: no se ha generado perfil; se instala el build sin PGO" >&2
+    fi
+else
+    write_mozconfig base
+    ./mach build "${MAKEFLAGS:-}"
+fi
+
 DESTDIR="$1" ./mach install
 
 # Remove a lot of uneeded "stuff".

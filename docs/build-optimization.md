@@ -204,6 +204,44 @@ más débil.
 Lo mismo aplica al PGO de ffmpeg (`FFMPEG_PGO=1`): necesita el runtime en el
 toolchain, así que va después del paso 1.
 
+## Cuándo usar ThinLTO, PGO y BOLT
+
+El tamaño del paquete no es el criterio. Lo son tres preguntas:
+
+1. **¿Cruza el código entre translation units?** → ThinLTO. El beneficio
+   crece con el número de TUs y con el cruce de languages (C++ ↔ Rust). En un
+   paquete de C con 5 ficheros, no hay nada que cruzar.
+2. **¿Hay una carga de trabajo representativa que se pueda automatizar?**
+   → PGO. Sin carga representativa el perfil no vale, y puede ser peor que no
+   tener perfil (el compilador optimiza para un trabajo que no es el tuyo).
+3. **¿El proceso calienta el código durante minutos?** → BOLT. Reordenar
+   bloques solo se nota en procesos de larga vida. En un binario que arranca y
+   muere en un segundo, el perfil es tan pequeño que el reordenado no cambia
+   nada.
+
+El coste: ThinLTO sube el **pico de RAM del enlace** (de 1 a 3-4 GB en un
+binario grande) y el tiempo de link; PGO multiplica el build por dos más el
+entrenamiento; BOLT necesita instrumentar y recoger un perfil.
+
+| paquete | TUs | carga representativa | proceso caliente | qué aplicar |
+| --- | --- | --- | --- | --- |
+| `llvm`/`clang` | miles | ✓ (compilar) | ✓ | ThinLTO, **PGO** ✓✓, **BOLT** ✓✓ |
+| `firefox` | miles | ✓ (navegar) | ✓ | **ThinLTO** (ya, con `cross` para el motor Rust), **PGO** (cross), BOLT ✓ |
+| `webkitgtk` | miles | parcial | ✓ | ThinLTO ✓, PGO solo con navegación real |
+| `mesa` | cientos | ✓ (GPU) | ✓ | LTO moderado, PGO solo con carga de GPU real |
+| `ffmpeg` | muchos | ✓✓ (transcodificar) | ✓ | **PGO** ✓✓ (el caso clásico), LTO marginal, BOLT ✓ |
+| `rust` | miles | ✓ | ✓ | se beneficia del toolchain (PGO/BOLT de LLVM) |
+| librerías C (`zlib`, `openssl`…) | pocos | — | — | nada: `-O2`/`-O3` + `lld` ya basta |
+| CLIs (`ls`, `grep`, `sed`) | 1-10 | — | ✗ | nada: BOLT no aporta en procesos de un segundo |
+
+En resumen: **ThinLTO desde donde hay cruce real, PGO donde hay carga
+automatable, BOLT donde el proceso dura**. Para firefox, el motor Rust es
+justamente el caso donde las tres aplican: Mozilla trae soporte nativo
+(`--enable-profile-generate` / `--enable-profile-use`, y `cross` para que el
+perfil alcance también al Rust) y `--enable-lto=thin,cross` mete al motor en
+el LTO. La receta lo expone con `FIREFOX_LTO`, `FIREFOX_PGO=1` y
+`FIREFOX_RUST_EXTRA_FLAGS`.
+
 ## Enlaces y LTO
 
 - Enlazador: `lld` con `--threads=N` limitado (máximo 4) y `-Wl,-O2`.
