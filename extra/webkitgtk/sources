@@ -9,4 +9,4 @@ patches/riscv64-no-wasm.patch
 patches/silence.patch
 patches/skia-foritfy.patch
 patches/spiel-allow-sandbox.patch
-patches/webdriver-fix-release-log.patch
+patches/noncomposited-graphicslayerfactory.patch

@@ -1,0 +1,12 @@
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/NonCompositedFrameRenderer.h
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/NonCompositedFrameRenderer.h
+@@ -66,6 +66,9 @@
+     void sizeDidChange() override;
+     bool ensureDrawing() override;
+     void fillGLInformation(RenderProcessInfo&&, CompletionHandler<void(RenderProcessInfo&&)>&&) override;
++    WebCore::GraphicsLayerFactory* graphicsLayerFactory() override { return nullptr; }
++    void setRootCompositingLayer(WebCore::GraphicsLayer*) override { }
++    void setViewOverlayRootLayer(WebCore::GraphicsLayer*) override { }
+ #if PLATFORM(WPE) && ENABLE(WPE_PLATFORM) && (USE(GBM) || OS(ANDROID))
+     void preferredBufferFormatsDidChange() override;
+ #endif
