@@ -35,9 +35,9 @@ S11. Convenciones del repo a replicar: receta en `extra/<nombre>/` con `version`
 
 ## Tasks
 
-- T1 · P1 `kiss-patch-audit` · S3-S5, S7-S10, S11 · inline · receta `extra/kiss-patch-audit`, script `files/kiss-patch-audit`, doc `docs/kiss-patch-audit.md`, test `test/kiss-patch-audit/run`
-- T2 · P2 `kiss-patch-fail` · S3, S4, S6, S7, S11 · inline · receta `extra/kiss-patch-fail`, hook `files/kiss-patch-fail`, doc `docs/kiss-patch-fail.md`, test `test/kiss-patch-fail/run`
-- T3 · Cierre · S5 · inline · ejecutar la auditoría sobre `~/proyectos/sprint` y contrastar el resultado con los 15 parches muertos verificados a mano
+- T1 · P1 `kiss-patch-audit` · S3-S5, S7-S10, S11 · inline · commit `a49120f` · receta `extra/kiss-patch-audit`, script `files/kiss-patch-audit`, doc `docs/kiss-patch-audit.md`, test `test/kiss-patch-audit/run` · revisión nativa `review-83f0d309b49a1217` aprobada y reconocida
+- T2 · P2 `kiss-patch-fail` · S3, S4, S6, S7, S11 · inline · commit `d6a23e0` · receta `extra/kiss-patch-fail`, hook `files/kiss-patch-fail`, doc `docs/kiss-patch-fail.md`, test `test/kiss-patch-fail/run`
+- T3 · Cierre · S5 · inline · la auditoría sobre `~/proyectos/sprint` encuentra 25 errores y 5 avisos: 21 parches muertos en 14 recetas, más avisos de orden y de doble aplicación
 
 ## Log
 
@@ -54,3 +54,7 @@ L5. Decisión del usuario sobre el alcance: "Auditoría primero (Recomendado)".
 L6. Engram: el proyecto `sprint` quedó resoluble (`.engram/config.json`), lo que desbloquea la memoria del proyecto. Hallazgos guardados en `sprint/patch-audit-findings` y `sprint/agent-patch-pipeline`.
 
 L7. Corrección acotada de la revisión nativa (hallazgo R3-1, lente reliability, severidad CRITICAL, disposición `introduced`): la auditoría trataba como parche local toda entrada de `sources` terminada en `.patch` o `.diff`, incluidas las URL remotas. Para una URL remota KISS descarga el fichero, de modo que el aviso `MISSING-PATCH` y su afirmación de que la construcción aborta con `No local file` eran falsos. Corrección: `parse_sources` distingue las fuentes remotas (`://`, rutas absolutas y `git+`) y el bucle `MISSING-PATCH` solo comprueba las rutas locales relativas. Se actualiza S7, la documentación y se añade un caso de regresión al test (`core/remote` con un parche remoto no produce hallazgos).
+
+L8. Revisión nativa de T1 (lineage `review-83f0d309b49a1217`, lentes `review-readability` y `review-reliability`): aprobada y reconocida (`gentle-ai.review-acknowledged/v1`, autoridad quemada). Quedan 17 avisos no bloqueantes de mantenibilidad, entre ellos que el test no fija `DEAD-COPIED`, `DOUBLE-APPLY` ni `UNKNOWN-MECHANISM`, que el JSON no se valida como documento, y que la documentación no declara el código de salida 2 para los errores de uso. Quedan como trabajo posterior, no como defectos de este cambio.
+
+L9. T2: `kiss-patch-fail` captura el fallo de parche en JSON y copia los `.rej`. El directorio de caché se deriva del directorio de build (`$cache/proc/$KISS_PID/build/$paquete`), que es el único punto donde el fallo es legible: `run_hook build-fail` se ejecuta antes de `pkg_clean`.

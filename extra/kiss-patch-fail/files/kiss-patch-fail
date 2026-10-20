@@ -1,0 +1,203 @@
+#!/bin/sh
+#
+# kiss-patch-fail - capture the failure of a patch application as structured data.
+#
+# KISS runs this as a 'build-fail' hook. The hook receives the hook name, the
+# package name and the path to the build directory. When the hook runs, the
+# rejected patches are still in the build directory, and KISS deletes that
+# directory right after, so this is the only moment where the failure can be
+# read.
+#
+# The hook never fails the build and never writes to the system: it writes a
+# JSON report and a copy of the rejected patches into the KISS cache.
+
+set -u
+
+LC_ALL=C
+export LC_ALL
+
+tool_version=1.0
+
+hook_name=${1:-}
+package=${2:-}
+build_dir=${3:-}
+
+# Only the build-fail event is interesting. KISS calls the same hook for
+# pre-build, post-build and the other events.
+[ "$hook_name" = "build-fail" ] || exit 0
+[ -n "$package" ] || exit 0
+[ -n "$build_dir" ] || exit 0
+[ -d "$build_dir" ] || exit 0
+
+cache_dir=${XDG_CACHE_HOME:-"${HOME%"${HOME##*[!/]}"}/.cache"}
+cache_dir=${cache_dir%"${cache_dir##*[!/]}"}/kiss
+
+out_dir=${KISS_PATCH_FAIL_DIR:-$cache_dir/patch-fail}
+mkdir -p "$out_dir" 2>/dev/null || exit 0
+
+package_dir=$out_dir/$package
+reject_dir=$package_dir/rejects
+mkdir -p "$reject_dir" 2>/dev/null || exit 0
+
+# The build directory lives in $cache_dir/proc/$KISS_PID/build/$package, so
+# the cache directory can be recovered from it.
+proc_dir=${build_dir%/build/*}
+cache_dir=${proc_dir%/*}
+cache_dir=${cache_dir%/proc}
+
+# The log of the failed build. KISS keeps it, but it is a free form text
+# file with a timestamped name.
+log_file=$(ls -t "$cache_dir"/logs/*/"$package"-* 2>/dev/null | head -n 1)
+
+# The recipe, when it can be found, tells which version is being built.
+recipe=
+saved_ifs=$IFS
+IFS=:
+set -- ${KISS_PATH:-}
+IFS=$saved_ifs
+for repo_path in "$@"; do
+    [ -n "$repo_path" ] || continue
+    if [ -r "$repo_path/$package/version" ]; then
+        recipe=$repo_path/$package
+        break
+    fi
+done
+
+recipe_version=
+upstream=
+if [ -n "$recipe" ]; then
+    [ -r "$recipe/version" ] && recipe_version=$(cut -d' ' -f1 < "$recipe/version" 2>/dev/null)
+    [ -r "$recipe/sources" ] && upstream=$(grep -m1 '://' "$recipe/sources" 2>/dev/null | cut -d' ' -f1)
+fi
+
+captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+
+tmp=$(mktemp -d) || exit 0
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+
+data=$tmp/data
+: > "$data"
+
+{
+    printf '@META\tpackage\t%s\n' "$package"
+    printf '@META\trecipe\t%s\n' "$recipe"
+    printf '@META\trecipe_version\t%s\n' "$recipe_version"
+    printf '@META\tupstream\t%s\n' "$upstream"
+    printf '@META\tbuild_dir\t%s\n' "$build_dir"
+    printf '@META\tlog\t%s\n' "$log_file"
+    printf '@META\tcaptured_at\t%s\n' "$captured_at"
+    printf '@META\trejects_dir\t%s\n' "$reject_dir"
+} >> "$data"
+
+# The patches that were copied into the build directory are the ones the
+# build was supposed to apply.
+for entry in "$build_dir"/*.patch "$build_dir"/*.diff; do
+    [ -f "$entry" ] || continue
+    printf '@PATCH\t%s\n' "${entry##*/}" >> "$data"
+done
+
+# The rejected patches. They are the actual failure: the hunks that did not
+# apply, with the context of the new upstream code.
+find "$build_dir" -name '*.rej' -type f 2>/dev/null > "$tmp/rejects"
+while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    printf '@REJ\t%s\n' "$entry" >> "$data"
+    cp -f "$entry" "$reject_dir/" 2>/dev/null
+done < "$tmp/rejects"
+
+# The lines of the build log that explain the failure.
+if [ -n "$log_file" ] && [ -r "$log_file" ]; then
+    grep -E 'Hunk #[0-9]+ (FAILED|succeeded)|FAILED at|Reversed \(or previously applied\)|can.t find file to patch|malformed patch|patch unexpectedly ends|Only garbage was found|No such file or directory' "$log_file" 2>/dev/null |
+        head -n 200 | while IFS= read -r line; do
+            printf '@ERROR\t%s\n' "$line" >> "$data"
+        done
+fi
+
+cat > "$tmp/fail.awk" <<'AWK'
+function jesc(s) {
+    gsub(/\\/, "\\\\", s)
+    gsub(/"/, "\\\"", s)
+    gsub(/\t/, "\\t", s)
+    gsub(/\r/, "\\r", s)
+    gsub(/\n/, "\\n", s)
+    return s
+}
+
+BEGIN {
+    nmeta = 0; npatch = 0; nerror = 0; nrej = 0
+    meta_key[1] = ""; meta_val[1] = ""
+}
+
+/^@META\t/ {
+    n = split($0, f, "\t")
+    nmeta++
+    meta_key[nmeta] = f[2]
+    meta_val[nmeta] = f[3]
+    next
+}
+/^@PATCH\t/ {
+    npatch++
+    patch[npatch] = substr($0, 8)
+    next
+}
+/^@ERROR\t/ {
+    nerror++
+    error[nerror] = substr($0, 8)
+    next
+}
+/^@REJ\t/ {
+    path = substr($0, 6)
+    nrej++
+    rej_path[nrej] = path
+    rej_name[nrej] = path
+    sub(/^.*\//, "", rej_name[nrej])
+    rej_patch[nrej] = rej_name[nrej]
+    sub(/\.rej$/, "", rej_patch[nrej])
+    content = ""
+    lines = 0
+    while ((getline line < path) > 0) {
+        if (lines < 400) content = content line "\n"
+        lines++
+    }
+    close(path)
+    rej_content[nrej] = content
+    rej_truncated[nrej] = (lines > 400) ? "yes" : "no"
+    next
+}
+
+END {
+    printf "{\n"
+    printf "  \"tool\": \"kiss-patch-fail\",\n"
+    printf "  \"version\": \"%s\",\n", jesc(tool_version)
+    for (i = 1; i <= nmeta; i++) {
+        printf "  \"%s\": \"%s\",\n", jesc(meta_key[i]), jesc(meta_val[i])
+    }
+    printf "  \"copied_patches\": ["
+    for (i = 1; i <= npatch; i++) {
+        printf "%s\"%s\"", (i > 1) ? ", " : "", jesc(patch[i])
+    }
+    printf "],\n"
+    printf "  \"patch_errors\": ["
+    for (i = 1; i <= nerror; i++) {
+        printf "%s\n    \"%s\"", (i > 1) ? "," : "", jesc(error[i])
+    }
+    if (nerror > 0) printf "\n  ],\n"
+    else printf "],\n"
+    printf "  \"rejected_patches\": ["
+    for (i = 1; i <= nrej; i++) {
+        printf "%s\n    {\n", (i > 1) ? "," : ""
+        printf "      \"patch\": \"%s\",\n", jesc(rej_patch[i])
+        printf "      \"rej_file\": \"%s\",\n", jesc(rej_name[i])
+        printf "      \"truncated\": \"%s\",\n", jesc(rej_truncated[i])
+        printf "      \"content\": \"%s\"\n", jesc(rej_content[i])
+        printf "    }"
+    }
+    if (nrej > 0) printf "\n  ]\n"
+    else printf "]\n"
+    printf "}\n"
+}
+AWK
+
+awk -v tool_version="$tool_version" -f "$tmp/fail.awk" "$data" > "$package_dir/$package.json" 2>/dev/null
+
+exit 0

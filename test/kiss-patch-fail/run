@@ -1,0 +1,92 @@
+#!/bin/sh
+
+set -eu
+
+hook=${1:-"$(dirname "$0")/../../extra/kiss-patch-fail/files/kiss-patch-fail"}
+tmp=${TMPDIR:-/tmp}/kiss-patch-fail-test.$$
+cache=$tmp/cache
+build=$cache/proc/4242/build/demo
+repo=$tmp/repo
+out=$tmp/out
+
+cleanup() {
+    rm -rf "$tmp"
+}
+
+trap cleanup EXIT HUP INT TERM
+
+mkdir -p "$build" "$cache/logs/2026-10-19" "$repo/demo"
+
+# The patches that were copied into the build directory.
+: > "$build/fix-a.patch"
+: > "$build/fix-b.patch"
+
+# The rejected patch: the hunks that did not apply.
+cat > "$build/fix-a.patch.rej" <<'REJ'
+diff --git a/src/main.c b/src/main.c
+--- a/src/main.c
++++ b/src/main.c
+@@ -10,7 +10,7 @@
+-    old();
++    new();
+REJ
+
+# The log of the failed build.
+cat > "$cache/logs/2026-10-19/demo-101010-4242" <<'LOG'
+patching file src/main.c
+Hunk #1 FAILED at 10.
+1 out of 1 hunk FAILED -- saving rejects to file src/main.c.rej
+make: *** [Makefile:12: all] Error 1
+LOG
+
+# The recipe being built.
+printf '1.2.3 1\n' > "$repo/demo/version"
+printf 'https://example.com/demo-1.2.3.tar.gz\n' > "$repo/demo/sources"
+
+KISS_PATCH_FAIL_DIR="$out" KISS_PATH="$repo" "$hook" build-fail demo "$build"
+
+report=$out/demo/demo.json
+[ -f "$report" ] || {
+    printf 'the hook wrote no report\n' >&2
+    exit 1
+}
+[ -f "$out/demo/rejects/fix-a.patch.rej" ] || {
+    printf 'the rejected patch was not copied\n' >&2
+    exit 1
+}
+
+grep -F '"package": "demo"' "$report" >/dev/null
+grep -F '"recipe": "' "$report" >/dev/null
+grep -F '"recipe_version": "1.2.3"' "$report" >/dev/null
+grep -F '"upstream": "https://example.com/demo-1.2.3.tar.gz"' "$report" >/dev/null
+grep -F '"patch": "fix-a.patch"' "$report" >/dev/null
+grep -F '"rej_file": "fix-a.patch.rej"' "$report" >/dev/null
+grep -F 'old();' "$report" >/dev/null
+grep -F 'Hunk #1 FAILED at 10.' "$report" >/dev/null
+grep -F 'fix-b.patch' "$report" >/dev/null
+
+# The hook must ignore the events it is not interested in.
+rm -f "$report"
+KISS_PATCH_FAIL_DIR="$out" KISS_PATH="$repo" "$hook" pre-build demo "$build"
+[ ! -f "$report" ] || {
+    printf 'the hook acted on an event other than build-fail\n' >&2
+    exit 1
+}
+
+# The hook must never fail the build.
+KISS_PATCH_FAIL_DIR="$out" KISS_PATH="$repo" "$hook" build-fail demo "$build" || {
+    printf 'the hook failed the build\n' >&2
+    exit 1
+}
+[ -f "$report" ] || {
+    printf 'the hook wrote no report on the second run\n' >&2
+    exit 1
+}
+
+# A build directory that does not exist must not make the hook fail.
+KISS_PATCH_FAIL_DIR="$out" KISS_PATH="$repo" "$hook" build-fail demo "$tmp/nowhere" || {
+    printf 'the hook failed on a missing build directory\n' >&2
+    exit 1
+}
+
+printf 'kiss-patch-fail: all tests passed\n'
