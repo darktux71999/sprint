@@ -20,8 +20,18 @@ JOBS="${JOBS:-16}"
 apply_patches() {
 	cd "$SRCDIR"
 	for p in "$RECIPE"/patches/*.patch; do
-		echo "-> $(basename "$p")"
-		patch -p1 -N < "$p" || true
+		name=$(basename "$p")
+		# Parche ya aplicado: se omite. Cualquier otro fallo aborta el build.
+		if patch -p1 -R --dry-run < "$p" >/dev/null 2>&1; then
+			echo "-> $name (ya aplicado)"
+			continue
+		fi
+		echo "-> $name"
+		patch -p1 < "$p" || {
+			echo "Fallo al aplicar el parche $name" >&2
+			echo "Abortando para no instalar un árbol sin parchear" >&2
+			exit 1
+		}
 	done
 }
 
