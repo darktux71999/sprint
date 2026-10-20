@@ -275,7 +275,7 @@ let image_access = ImageAccess::Formatted(ChannelMask::new(0xf)); // ¡siempre .
 
 ### Fix
 
-Patch en `~/proyectos/sprint/xorg/mesa/patches/nak-sustga-channel-mask.patch`
+Patch en `~/proyectos/sprint/xorg/mesa/patches/0001-nak-sustga-channel-mask.patch`
 (`ChannelMask::new(0xf)` → `ChannelMask::for_comps(intrin.num_components)`
 + asserts de consistencia con los intrínsecos hermanos).
 
@@ -353,5 +353,226 @@ completo y secuestró todo el input; hubo que forzar el apagado y dmesg
   kernel, no pasa por X): Alt+SysRq+t (lista de tareas), +w (pilas en D),
   +s (sync). Si después del corte el log no tiene eventos nuevos, el
   kernel estaba colgado y no solo X — también es un dato.
-- Próximo paso A/B: quitar el aumento manual de clock con `hang-watch`
-  corriendo; si desaparecen los cuelgues, la causa es el clock manual.
+
+## Sesión 2026-10-14 — verificación del fix NAK y bug nuevo del compositor VPP
+
+### MISALIGNED_REG: fix verificado en el sistema
+
+- Parche `0001-nak-sustga-channel-mask.patch` presente en la receta kiss
+  (`mesa 26.2.4 1`, sources incluye ambos parches).
+- `vkcopy` r8/rg8/r16/rgba8 → delta=0 de traps, readback mismatches=0.
+- Boot completo: 0 MISALIGNED_REG (los traps del boot son de otra clase).
+
+### Bug nuevo: RT_WIDTH/HEIGHT_OVERRUN (PROP/ROP) en el VPP de VA
+
+- Sintoma: `GPC0/PROP trap [RT_WIDTH/HEIGHT_OVERRUN]` en el escaneo de
+  plugins de GStreamer (`libgstva.so`) y en cualquier VPP de VA sobre
+  nouveau. Sin hang, pero vídeo VA corrupto.
+- Repro mínima pura libva: `~/mesa-fix/va_probe.c` (sin X/GL/GStreamer):
+  copia VPP NV12 1:1 + verificación de contenido por filas.
+  Baseline (mesa 26.2.4-1 sin parchar): 235/240 filas luma corruptas,
+  60/120 croma, ~2 traps por pasada.
+- Causa raíz (mesa, `vl_compositor_yuv_deint_full`): nouveau_vp3 crea
+  buffers interlaced (campos como capas de array; superficies por campo
+  de h/2) pero el compositor indexaba los planos como progresivos
+  ([Y,U,V]) y usaba viewports de cuadro completo sobre targets de campo
+  → renders a planos equivocados + basura por los bordes.
+- Fix: render por campo (planos × campos), selección de campo del origen
+  vía BOB_TOP/BOTTOM (layer = zw.x), rect de destino reducido a la mitad
+  vertical por campo, y compensación del half-line shift de BOB (que
+  mezclaba filas con fields-as-layers).
+- Parche: `~/proyectos/sprint/xorg/mesa/patches/0005-vl-compositor-interlaced-dst.patch`
+  (y copia en `~/mesa-fix/`). Validado con build 26.2.4 propio
+  (`/tmp/mesa2624/build`, driver VA cargado vía LIBVA_DRIVERS_PATH):
+  **contenido PASS byte-perfecto** (0/240 filas, 0/120 croma).
+
+### Bug nuevo #2 (parcialmente corregido): clear de superficies video-tiled
+
+- Aislado: la asignación diferida + `clear_render_target` de superficies
+  NV12 (layout video `tile_mode 0x10`, `nvc0_miptree_init_layout_video`)
+  trae la ROP por sí sola, sin draws. Repro: `~/mesa-fix/va_clear_test.c`
+  (crear superficie NV12 + vaGetImage): +1 trap por asignación.
+- Y800 (plano único, layout genérico sin video tiling) → 0 traps.
+- Umbral (antes del fix): trapa si el campo ≥32 filas o el ancho ≥256.
+
+**Fix parcial aplicado** (`nvc0-clear-video-tile-pitch.patch`, en la
+receta): en `nvc0_clear_render_target`, para `tile_mode 0x10` programar
+RT_HORIZ con el pitch en bytes (como el camino lineal) en vez de
+`sf->width`. Resultado:
+- Clase por ancho RESUELTA: 256x16 y 320x16 → 0 traps (antes +1).
+- Contenido VPP sigue byte-perfecto (los draws no se afectan).
+- Clase por altura queda: 64x64 y 320x240 siguen +1 trap por asignación
+  (`RT_HEIGHT_OVERRUN x = bytes_fila-16, y = 16`; la coordenada y=16 es
+  constante = altura de tile probable). `align(height,16)` no lo arregla.
+
+Sospechosos restantes para la clase altura: CLEAR_BUFFERS del ROP con
+tile_mode 0x10 en superficies de ≥2 filas de tile, o el manejo de capa
+(`z` de CLEAR_BUFFERS sin `first_layer`) en superficies de campo.
+Siguiente experimento: comparar con mmiotrace del blob (método sección 5
+del informe deep_research) o probar la corrección de capa en
+CLEAR_BUFFERS.
+
+**Datos de rnndb y descartes (2026-10-14, tarde):**
+- rnndb `gf100_3d.xml`: el campo 0x14 del RT es `BLOCK_DIMENSIONS`
+  (HEIGHT en log2) y `CLEAR_BUFFERS` (0x19d0) tiene campos RT y LAYER.
+  Macros mesa: NVC0_TILE_SIZE_X = 64<<x (bytes), NVC0_TILE_SIZE_Y =
+  8<<y (filas) → tile_mode 0x10 = tile de 64 bytes × 16 filas.
+- Descartados por experimento: `align(height,16)` ✗ · VERT en tiles ✗ ·
+  VERT ×16 ✗ (VERT se ignoraba) · clear por rebanadas de 16 filas con
+  scissor ✗ · capa en el campo LAYER ✗ · VIEWPORT previo ✗.
+
+**BUG #2 CORREGIDO (2026-10-14, noche) — `0002-nvc0-clear-video-tiles.patch`**
+
+Tres problemas encadenados en `nvc0_clear_render_target` para superficies
+video (`tile_mode 0x10`) y plantillas de superficie:
+
+1. RT_HORIZ se programaba en texels; para tile 0x10 hace falta el pitch
+   en bytes (clase ancho).
+2. El clear fijo del ROP tiene un límite de **16 filas relativas a la
+   dirección del RT** (VERT se ignora): se limpia por rebanadas de una
+   fila de tile moviendo la dirección base del RT (`addr += y0×pitch`).
+3. `nouveau_vp3_video_buffer_create` (y `vl_video_buffer`) rellenan
+   plantillas `pipe_surface` a mano, sin pasar por `create_surface` →
+   los campos extra de `nv50_surface` (`sf->depth`, `sf->offset`) son
+   basura. `sf->depth` gigante hacía fallar el `PUSH_SPACE` y los clears
+   de los campos 1 (capa 1) **se salteaban en silencio** → contenido
+   viejo en los campos. Ahora `depth` se toma de
+   `last_layer-first_layer+1` y el offset del nivel real del miptree;
+   el desplazamiento de capa va en la propia dirección del RT.
+
+Verificación (`~/mesa-fix/va_clear_test`, ahora con validación de
+contenido): 256x16, 320x240, 64x64, 48x16 → **delta=0 y ambos campos
+limpios (PASS)**. `va_probe` contenido byte-perfecto; `vkcopy` OK.
+
+Receta kiss: 4 fuentes (tarball + 3 parches) con checksums al día.
+
+### Pendientes (actualizado 2026-10-14)
+
+1. ~~Bug #2: RT_HORIZ=pitch~~ → bug #2 CORREGIDO (ver sección anterior).
+2. Instalar mesa parcheada en el sistema (`kiss build mesa` + doas) —
+   la receta ya incluye los tres parches validados.
+3. Reporte upstream: dos bugs independientes
+   (`~/mesa-fix/upstream-report-vpp.md` + el del NAK ya existente).
+
+### Estado de los relojes/pstate (2026-10-14)
+
+- La GPU corre actualmente con el **pstate 0f** (perfil máximo de
+   Kepler) de forma **estable** según el uso diario → el aumento manual
+   de clock NO es el causante de los cuelgues por sí solo.
+- Los freezes de X anteriores correlacionan con las **tormentas de
+   traps** (65-100 seguidos; wedge de nouveau sin recuperación), ya
+   corregidas por los tres parches → la hipótesis del cuelgue queda
+   apuntada a los traps, no al reclocking.
+- Con 0f activo, el techo de rendimiento ya está desbloqueado (el
+   informe deep_research estima ~80% del propietario con reclocking vs
+   ~10% sin él).
+- Vigilancia residual recomendable: temperatura bajo carga sostenida a
+   0f (TDP 38 W, variantes pasivas; riesgo de throttling) —
+   `hang-watch.sh` ya muestrea hwmon cada 5 s.
+
+## Sesión 2026-10-14 (noche) — luakit/webkitgtk en negro + hallazgos
+
+### Problema del usuario y solución
+
+Luakit + webkitgtk 2.54 con aceleración GPU: pantalla negra / proceso
+web cruashea (youtube). Con la aceleración desactivada funcionaba lento.
+
+**Diagnóstico** (con capturas de pantalla verificadas):
+- Config externa encontrada: `~/.config/luakit/userconf.lua` tenía
+  `hardware_acceleration_policy = "never"` (workaround previo).
+- Con aceleración activa: HTML simple renderiza ✓, pero el
+  **renderizador DMABUF de WebKit falla sobre nouveau** (youtube →
+  "Web process crashed"; pantallas complejas → negro).
+- WebGL aparecía "deshabilitado" pero era un **default del propio
+  luakit** (`webview.enable_webgl = false`), no del driver.
+
+**Solución aplicada** (verificada con screenshots):
+1. `export WEBKIT_DISABLE_DMABUF_RENDERER=1` en `~/.config/sx/sxrc`
+   (fuerza el camino GL del compositor en lugar del DMABUF).
+2. `~/.config/luakit/userconf.lua`:
+   `hardware_acceleration_policy = "always"` + `enable_webgl = true`.
+- Resultado: youtube renderiza completo ✓, get.webgl.org muestra el
+  cubo WebGL ✓, HTML local ✓ (capturas en `~/mesa-fix/shot-*.jpg`).
+
+### Restos: traps del probing VA (RGB→YUV)
+
+- `libgstva.so` (probing de GStreamer) todavía traea: +15 por escaneo
+  (repro: `~/mesa-fix/gst-bisect.sh /usr/lib/gstreamer-1.0/libgstva.so`).
+  `libgstopengl` → 0.
+- Causa: `vl_compositor_convert_rgb_to_yuv` tiene el MISMO bug de
+  destino interlaced que ya se corrigió en `vl_compositor_yuv_deint_full`
+  (indexa superficies como progresivas y usa rects de cuadro completo).
+  El probing de gst-va convierte RGB→YUV hacia superficies NV12
+  interlaced → traps `RT_HEIGHT/WIDTH_OVERRUN` (x=0,y=0, formats 32/37).
+- El fix requiere paridad por campo en el shader `fs_rgb_to_yuv` (la
+  técnica está en el weave de `vl_compositor_gfx.c`: paridad vía
+  `round(tc.y-0.5)` y selector de campo en `tc.w`) o pasar por un buffer
+  temporal progresivo + copia por campos (camino ya corregido).
+  Pendiente para la próxima sesión.
+
+## Sesión 2026-10-15 — decodificación de vídeo por hardware (en curso)
+
+### Estado del stack de firmware (COMPLETO y verificado)
+
+Dos capas de firmware necesarias para la decodificación VA en GK208:
+
+1. **Firmware FALCON de los motores** (kernel): `nv106_fuc084/085/086`
+   (= msvld/mspdec/msppp). Extraídos de NVIDIA 340.108 con
+   `extract_firmware.py` (repo `envytools/firmware`) — estaban en
+   `~/configuracion/kiss-dotfiles/firmware/nouveau/` con nombres
+   antiguos (`nvc0_fuc084…`, md5 idénticos entre familias). Instalados
+   en `/lib/firmware/nouveau/` con los nombres nuevos y **embebidos en
+   el kernel** con `CONFIG_EXTRA_FIRMWARE` (los initcalls piden el
+   firmware ANTES de montar la raíz; el sistema no usa initramfs).
+   → el motor msvld ya arranca (antes: "init failed, -19").
+2. **Microcódigo por códec** (userspace, lo abre mesa en tiempo de
+   ejecución): `vuc-h264-0`, `vuc-mpeg12-0`, `vuc-vc1-0` (symlinks a
+   `vuc-vp4-*`). Extraídos de NVIDIA-Linux-x86_64-340.108 con el mismo
+   script. Validados contra las comprobaciones del cargador de mesa
+   (tamaño tras recorte: h264 0x1870≡0x70, mpeg12 0xbe0≡0xe0,
+   vc1 0x1cac≡0xac). Copiados a `/lib/firmware/nouveau/` (sin
+   recompilar ni reiniciar).
+
+### Estado de la decodificación (ROTO — bug nuevo)
+
+Con el firmware completo, el decode avanza pero falla en el driver:
+
+- `gst-launch … vah264dec …`: assert `kref` en
+  `nouveau_pushbuf_data` (mesa `winsys/nouveau/drm/nouveau.c:1685`) —
+  un BO referenciado en el push del decoder no está en la krec del
+  canal. (Antes del vuc fallaba antes: assert en `bsp_begin`.)
+- `mpv --hwdec=vaapi`: init VA falla → cae a software en silencio.
+- `ffmpeg -hwaccel vaapi`: "Failed to transfer data to output frame: -5"
+  y el mismo assert kref con `-hwaccel_output_format vaapi`.
+- Faults FIFO asociados: `HOST1/HOST2 … reason 02 [PTE]` en 0x1256000
+  (direcciones sin mapear) y, en la corrida sin vuc, `MSVLD …
+  PRIV_VIOLATION` en 0x12aa000.
+
+### Trabajo a medias (reanudar aquí)
+
+1. El assert `kref` está en `nouveau_pushbuf_data` del winsys de mesa:
+   alguien hace push con un BO que no pasó por `PUSH_REFN`. Revisados
+   `bo_refs` de `nvc0_video_bsp.c:148` y `nvc0_video_vp.c:81` y la
+   asignación de `ref_bo` (`nvc0_video.c:260`) — todo presente. Siguiente:
+   identificar qué llamada real dispara el assert (busca los call sites
+   de `nouveau_pushbuf_data`/`PUSH_DATAp` en el camino bsp/vp/ppp y el
+   `dec->fw_bo`/`bitplane_bo` condicionales) y comparar con el camino
+   que sí funciona (los metacomandos).
+2. Por qué el init de VA falla en mpv/ffmpeg (síntoma distinto al de
+   gst): reproducible con `ffmpeg -hwaccel vaapi -hwaccel_device
+   /dev/dri/renderD128 -i ~/mesa-fix/test720.mp4 -f null -`.
+3. Luego: el fix RGB→YUV del compositor (sección anterior).
+
+### Comandos útiles
+
+```sh
+# repro del pushbuf roto (assert kref):
+cd ~/mesa-fix && gst-launch-1.0 filesrc location=test720.mp4 ! qtdemux \
+  ! h264parse ! vah264dec ! fakesink
+# repro del init fallido de ffmpeg:
+ffmpeg -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -i test720.mp4 -f null -
+# extracción de firmware (ya hecho):
+cd ~/mesa-fix/nvidia-340 && python3 ~/mesa-fix/extract_firmware.py
+# traps por escaneo gst (bug RGB→YUV):
+~/mesa-fix/gst-bisect.sh /usr/lib/gstreamer-1.0/libgstva.so
+```
