@@ -1,0 +1,3 @@
+#!/bin/sh -e
+
+install -Dm755 kiss-patch-audit "$1/usr/bin/kiss-patch-audit"

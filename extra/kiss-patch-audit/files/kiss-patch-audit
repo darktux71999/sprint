@@ -1,0 +1,535 @@
+#!/bin/sh
+#
+# kiss-patch-audit - audit the patch layer of KISS recipes.
+#
+# The audit is read only. It never writes to a recipe, to the KISS cache or
+# to the installed system. It reports the patches that are never applied,
+# the patches that sources references but that do not exist, and the
+# patches whose order in sources does not match the order in which they
+# are really applied.
+
+set -u
+
+LC_ALL=C
+export LC_ALL
+
+prog=${0##*/}
+tool_version=1.0
+
+usage() {
+    cat <<EOF
+Usage: $prog [--json] [--strict] [--quiet] [--help] [PATH...]
+
+Audits the patch layer of KISS recipes without changing anything.
+
+PATH may be a repository root (a directory holding core/, extra/, ...) or a
+package category directory. When no PATH is given the directories listed in
+KISS_PATH are audited.
+
+Checks:
+  DEAD-PATCH        a file in patches/ that sources never lists
+  DEAD-COPIED       a patch listed in sources that the build never applies
+  DEAD-STACK        a recipe whose build never applies any patch
+  MISSING-PATCH     a patch listed in sources that does not exist
+  UNKNOWN-MECHANISM a build that applies patches in a way the audit cannot model
+  ORDER-DRIFT       the order in sources is not the order of application
+  DOUBLE-APPLY      a patch applied both explicitly and through a glob
+  SERIES-DRIFT      patches/series and the copied patches disagree
+  STALE-PATCH       a patch names a version the recipe does not build
+
+Options:
+  --json    print the findings as JSON
+  --strict  also fail when only warnings were found
+  --quiet   print only the summary
+  --help    print this help
+
+Exit status is 0 when no error was found and 1 otherwise.
+EOF
+}
+
+json=no
+strict=no
+quiet=no
+roots=
+
+while [ "$#" -gt 0 ]; do
+    case $1 in
+        --json) json=yes ;;
+        --strict) strict=yes ;;
+        --quiet) quiet=yes ;;
+        -h|--help) usage; exit 0 ;;
+        --)
+            shift
+            while [ "$#" -gt 0 ]; do
+                roots="$roots $1"
+                shift
+            done
+            break
+            ;;
+        -*)
+            printf 'ERROR: unknown option: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            roots="$roots $1"
+            ;;
+    esac
+    shift
+done
+
+if [ -z "$roots" ]; then
+    saved_ifs=$IFS
+    IFS=:
+    for root in ${KISS_PATH:-}; do
+        [ -n "$root" ] || continue
+        roots="$roots $root"
+    done
+    IFS=$saved_ifs
+    [ -n "$roots" ] || roots=.
+fi
+
+tmp=$(mktemp -d) || {
+    printf 'ERROR: cannot create a temporary directory\n' >&2
+    exit 2
+}
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+
+cat > "$tmp/audit.awk" <<'AWK'
+function reset_recipe() {
+    recipe = ""; package = ""; recipe_version = ""
+    n_dirfiles = 0; n_patchfiles = 0; n_srcpatches = 0
+    n_copied = 0; n_series = 0; n_glob = 0
+    mentions_patch = 0; mechanism = 0; uses_series = 0
+    for (k in dirfiles) delete dirfiles[k]
+    for (k in patchbase) delete patchbase[k]
+    for (k in copied) delete copied[k]
+    for (k in basename_of) delete basename_of[k]
+    for (k in listed) delete listed[k]
+    for (k in explicit) delete explicit[k]
+    for (k in globpat) delete globpat[k]
+    for (k in series) delete series[k]
+    for (k in seriesset) delete seriesset[k]
+    for (k in appliedset) delete appliedset[k]
+    for (k in globset) delete globset[k]
+    for (k in sorted) delete sorted[k]
+    for (k in srcorder) delete srcorder[k]
+    for (k in copied_order) delete copied_order[k]
+    for (k in srcpatch_src) delete srcpatch_src[k]
+    for (k in srcpatch_base) delete srcpatch_base[k]
+    for (k in srcpatch_remote) delete srcpatch_remote[k]
+}
+
+function add_finding(sev, code, pkg, rec, detail) {
+    n = ++nfindings
+    f_sev[n] = sev; f_code[n] = code; f_pkg[n] = pkg
+    f_rec[n] = rec; f_detail[n] = detail
+    if (sev == "error") nerr++; else nwarn++
+}
+
+function jesc(s) {
+    gsub(/\\/, "\\\\", s)
+    gsub(/"/, "\\\"", s)
+    gsub(/\t/, "\\t", s)
+    gsub(/\r/, "\\r", s)
+    gsub(/\n/, "\\n", s)
+    return s
+}
+
+function glob_regex(p,   r, i, c) {
+    r = ""
+    for (i = 1; i <= length(p); i++) {
+        c = substr(p, i, 1)
+        if (c == "*") r = r ".*"
+        else if (c == "?") r = r "."
+        else if (c == ".") r = r "\\."
+        else r = r c
+    }
+    return "^" r "$"
+}
+
+function insertion_sort(arr, n,   i, j, key) {
+    for (i = 2; i <= n; i++) {
+        key = arr[i]; j = i - 1
+        while (j >= 1 && arr[j] > key) {
+            arr[j + 1] = arr[j]; j--
+        }
+        arr[j + 1] = key
+    }
+}
+
+function stale_version(name, ver,   rest, tok, found) {
+    rest = name; found = 0
+    while (match(rest, /[0-9]+\.[0-9]+(\.[0-9]+)*/)) {
+        tok = substr(rest, RSTART, RLENGTH)
+        if (tok == ver) return 0
+        found = 1
+        rest = substr(rest, RSTART + RLENGTH)
+    }
+    return found
+}
+
+function parse_sources(line,   f, n, src, dest, base, copied_name) {
+    sub(/^[ \t]+/, "", line)
+    if (line == "" || line ~ /^#/) return
+    n = split(line, f, /[ \t]+/)
+    src = f[1]
+    dest = (n > 1) ? f[2] : ""
+    if (src !~ /\.(patch|diff)$/) return
+
+    base = src
+    sub(/^.*\//, "", base)
+    copied_name = (dest != "") ? dest "/" base : base
+
+    n_srcpatches++
+    srcpatch_src[n_srcpatches] = src
+    srcpatch_base[n_srcpatches] = base
+    # A remote source is downloaded by KISS, so it is not a local file that
+    # could be missing from the recipe. Only local relative paths are.
+    if (src ~ /:\/\// || src ~ /^\// || src ~ /^git\+/) {
+        srcpatch_remote[n_srcpatches] = 1
+    } else {
+        srcpatch_remote[n_srcpatches] = 0
+    }
+    listed[base] = 1
+    if (!(copied_name in copied)) {
+        copied[copied_name] = 1
+        n_copied++
+        copied_order[n_copied] = copied_name
+    }
+    if (!(base in basename_of)) basename_of[base] = copied_name
+}
+
+function parse_build(line,   rest, tok, n, i, toks, pat, p, re) {
+    if (line ~ /patch/) mentions_patch = 1
+
+    p = index(line, "<")
+    if (p > 0 && line ~ /patch/) {
+        rest = substr(line, p + 1)
+        gsub(/^[ \t]+/, "", rest)
+        n = split(rest, toks, /[ \t;)&|]+/)
+        tok = toks[1]
+        gsub(/^["'\'']/, "", tok)
+        gsub(/["'\'']$/, "", tok)
+        if (tok != "" && tok !~ /^\$/ && tok ~ /\.(patch|diff)$/) {
+            explicit[tok] = 1
+            mechanism = 1
+        }
+    }
+
+    if (line ~ /for[ \t]+/ && line ~ /[ \t]in[ \t]/) {
+        p = index(line, "in")
+        rest = substr(line, p + 2)
+        while (match(rest, /[A-Za-z0-9_.\/*?-]*\*[A-Za-z0-9_.\/*?-]*/)) {
+            pat = substr(rest, RSTART, RLENGTH)
+            rest = substr(rest, RSTART + RLENGTH)
+            if (pat == "" || pat !~ /\*/) continue
+            if (pat !~ /patch|diff|Patch|Diff/) continue
+            globpat[pat] = 1
+            mechanism = 1
+        }
+    }
+
+    if (line ~ /done[ \t]*</) {
+        p = index(line, "<")
+        rest = substr(line, p + 1)
+        gsub(/[ \t]/, "", rest)
+        if (rest == "series" || rest == "patches/series") {
+            uses_series = 1
+            mechanism = 1
+        }
+    }
+
+    if (line ~ /quilt/) {
+        uses_series = 1
+        mechanism = 1
+    }
+}
+
+function finish_recipe(   i, k, name, base, s, n, m, differ, re) {
+    if (recipe == "") return
+    if (n_patchfiles == 0 && n_srcpatches == 0) return
+
+    for (k in globpat) n_glob++
+
+    for (i = 1; i <= n_patchfiles; i++) {
+        base = patchbase[i]
+        if (!(base in listed)) {
+            add_finding("error", "DEAD-PATCH", package, recipe,
+                "patches/" base " is not listed in sources; it is never copied and never applied")
+        }
+    }
+
+    for (i = 1; i <= n_srcpatches; i++) {
+        if (srcpatch_remote[i]) continue
+        s = srcpatch_src[i]
+        if (!(s in dirfiles)) {
+            add_finding("error", "MISSING-PATCH", package, recipe,
+                "sources lists " s " but the file does not exist; kiss build aborts with No local file")
+        }
+    }
+
+    if (!mentions_patch && (n_patchfiles > 0 || n_srcpatches > 0)) {
+        add_finding("error", "DEAD-STACK", package, recipe,
+            "the build never applies patches; " n_patchfiles " file(s) in patches/ and " \
+            n_srcpatches " patch(es) listed in sources are dead")
+        return
+    }
+
+    if (!mechanism) {
+        add_finding("warning", "UNKNOWN-MECHANISM", package, recipe,
+            "the build applies patches in a way the audit cannot model; the applied set is unknown")
+        return
+    }
+
+    for (k in explicit) {
+        if (k in copied) appliedset[k] = 1
+        else if (k in basename_of) appliedset[basename_of[k]] = 1
+    }
+    for (i = 1; i <= n_copied; i++) {
+        name = copied_order[i]
+        for (k in globpat) {
+            re = glob_regex(k)
+            if (name ~ re) {
+                appliedset[name] = 1
+                globset[name] = 1
+                break
+            }
+        }
+        if (name in appliedset) continue
+        base = name
+        sub(/^.*\//, "", base)
+        for (k in globpat) {
+            re = glob_regex(k)
+            if (base ~ re) {
+                appliedset[name] = 1
+                globset[name] = 1
+                break
+            }
+        }
+    }
+    if (uses_series) {
+        for (i = 1; i <= n_series; i++) {
+            name = series[i]
+            if (name in copied) appliedset[name] = 1
+        }
+    }
+
+    for (i = 1; i <= n_copied; i++) {
+        name = copied_order[i]
+        if (!(name in appliedset)) {
+            add_finding("error", "DEAD-COPIED", package, recipe,
+                "the patch " name " is listed in sources but the build never applies it")
+        }
+    }
+
+    for (k in explicit) {
+        if (k in globset) {
+            add_finding("warning", "DOUBLE-APPLY", package, recipe,
+                "the patch " k " is applied explicitly and also by a glob loop")
+        }
+    }
+
+    if (uses_series) {
+        for (i = 1; i <= n_series; i++) {
+            s = series[i]
+            if (!(s in copied) && !(s in basename_of)) {
+                add_finding("warning", "SERIES-DRIFT", package, recipe,
+                    "patches/series lists " s " which sources never copies")
+            }
+        }
+        for (i = 1; i <= n_copied; i++) {
+            name = copied_order[i]
+            base = name
+            sub(/^.*\//, "", base)
+            if (!(base in seriesset)) {
+                add_finding("warning", "SERIES-DRIFT", package, recipe,
+                    "the patch " name " is copied but patches/series does not list it")
+            }
+        }
+    }
+
+    if (!uses_series && n_glob > 0 && n_copied > 1) {
+        n = 0; m = 0
+        for (i = 1; i <= n_copied; i++) {
+            name = copied_order[i]
+            if (name in appliedset) { sorted[++n] = name; srcorder[++m] = name }
+        }
+        if (n > 1) {
+            insertion_sort(sorted, n)
+            differ = 0
+            for (i = 1; i <= n; i++) if (sorted[i] != srcorder[i]) { differ = 1; break }
+            if (differ) {
+                add_finding("warning", "ORDER-DRIFT", package, recipe,
+                    "the order in sources is not the order of application; the build applies them in glob order")
+            }
+        }
+    }
+
+    if (recipe_version ~ /^[0-9]+(\.[0-9]+)*$/) {
+        for (i = 1; i <= n_patchfiles; i++) {
+            base = patchbase[i]
+            if (index(base, package) != 1) continue
+            if (stale_version(base, recipe_version)) {
+                add_finding("warning", "STALE-PATCH", package, recipe,
+                    "patches/" base " names a version other than " recipe_version)
+            }
+        }
+    }
+}
+
+function report(   i, first, n, r) {
+    if (json == "yes") {
+        printf "{\n"
+        printf "  \"tool\": \"%s\",\n", jesc(tool)
+        printf "  \"version\": \"%s\",\n", jesc(tool_version)
+        printf "  \"roots\": ["
+        n = split(roots, r, /[ \t]+/)
+        first = 1
+        for (i = 1; i <= n; i++) {
+            if (r[i] == "") continue
+            if (!first) printf ","
+            first = 0
+            printf " \"%s\"", jesc(r[i])
+        }
+        printf "],\n"
+        printf "  \"recipes\": %s,\n", recipes
+        printf "  \"recipes_with_patches\": %s,\n", patched
+        printf "  \"errors\": %s,\n", nerr
+        printf "  \"warnings\": %s,\n", nwarn
+        printf "  \"findings\": ["
+        for (i = 1; i <= nfindings; i++) {
+            printf "%s\n    {\n", (i > 1) ? "," : ""
+            printf "      \"severity\": \"%s\",\n", jesc(f_sev[i])
+            printf "      \"code\": \"%s\",\n", jesc(f_code[i])
+            printf "      \"package\": \"%s\",\n", jesc(f_pkg[i])
+            printf "      \"recipe\": \"%s\",\n", jesc(f_rec[i])
+            printf "      \"detail\": \"%s\"\n", jesc(f_detail[i])
+            printf "    }"
+        }
+        if (nfindings > 0) printf "\n  ]\n"
+        else printf "]\n"
+        printf "}\n"
+        return
+    }
+
+    if (quiet != "yes") {
+        for (i = 1; i <= nfindings; i++) {
+            printf "%s: %s: %s: %s\n", (f_sev[i] == "error") ? "ERROR" : "WARN", \
+                f_pkg[i], f_code[i], f_detail[i]
+        }
+    }
+    printf "SUMMARY: recipes=%s patched=%s errors=%s warnings=%s\n", \
+        recipes, patched, nerr, nwarn
+}
+
+BEGIN { nfindings = 0; nerr = 0; nwarn = 0; section = ""; reset_recipe() }
+
+/^@RECIPE\t/ {
+    finish_recipe()
+    reset_recipe()
+    recipe = substr($0, 9)
+    section = "meta"
+    next
+}
+/^@PACKAGE\t/ { package = substr($0, 10); next }
+/^@VERSION\t/ { recipe_version = substr($0, 10); next }
+/^@DIRFILES$/ { section = "dirfiles"; next }
+/^@PATCHFILES$/ { section = "patchfiles"; next }
+/^@SOURCES$/ { section = "sources"; next }
+/^@BUILD$/ { section = "build"; next }
+/^@SERIES$/ { section = "series"; next }
+/^@END$/ { finish_recipe(); reset_recipe(); section = ""; next }
+
+section == "dirfiles" { dirfiles[$0] = 1; n_dirfiles++; next }
+section == "patchfiles" {
+    base = $0
+    sub(/^.*\//, "", base)
+    if (base !~ /\.(patch|diff)$/) next
+    patchbase[++n_patchfiles] = base
+    next
+}
+section == "sources" { parse_sources($0); next }
+section == "build" { parse_build($0); next }
+section == "series" {
+    s = $0
+    sub(/^[ \t]+/, "", s)
+    sub(/[ \t]+$/, "", s)
+    if (s == "" || s ~ /^#/) next
+    series[++n_series] = s
+    seriesset[s] = 1
+    next
+}
+
+END {
+    report()
+    if (nerr > 0) exit 1
+    if (strict == "yes" && nwarn > 0) exit 1
+}
+AWK
+
+stream=$tmp/stream
+: > "$stream"
+
+recipe_count=0
+patched_count=0
+
+for root in $roots; do
+    if [ ! -d "$root" ]; then
+        printf 'ERROR: not a directory: %s\n' "$root" >&2
+        exit 2
+    fi
+
+    find "$root" -maxdepth 3 -name version -type f 2>/dev/null > "$tmp/versions"
+
+    while IFS= read -r version_file; do
+        [ -n "$version_file" ] || continue
+        recipe=${version_file%/version}
+        recipe=${recipe%/}
+
+        [ -f "$recipe/build" ] || [ -f "$recipe/sources" ] || continue
+
+        package=${recipe##*/}
+        recipe_count=$((recipe_count + 1))
+
+        has_patches=no
+        [ -d "$recipe/patches" ] && has_patches=yes
+
+        if [ "$has_patches" = no ]; then
+            [ -f "$recipe/sources" ] || continue
+            grep -q '\.patch' "$recipe/sources" 2>/dev/null || continue
+        fi
+
+        patched_count=$((patched_count + 1))
+
+        {
+            printf '@RECIPE\t%s\n' "$recipe"
+            printf '@PACKAGE\t%s\n' "$package"
+            printf '@VERSION\t%s\n' "$(cut -d' ' -f1 < "$recipe/version" 2>/dev/null)"
+            printf '@DIRFILES\n'
+            find "$recipe" -maxdepth 3 -type f 2>/dev/null | while IFS= read -r entry; do
+                printf '%s\n' "${entry#"$recipe"/}"
+            done
+            printf '@PATCHFILES\n'
+            if [ "$has_patches" = yes ]; then
+                for entry in "$recipe"/patches/*; do
+                    [ -f "$entry" ] || continue
+                    printf '%s\n' "${entry##*/}"
+                done
+            fi
+            printf '@SOURCES\n'
+            if [ -f "$recipe/sources" ]; then cat "$recipe/sources"; fi
+            printf '@BUILD\n'
+            if [ -f "$recipe/build" ]; then cat "$recipe/build"; fi
+            printf '@SERIES\n'
+            if [ -f "$recipe/patches/series" ]; then cat "$recipe/patches/series"; fi
+            printf '@END\n'
+            :
+        } >> "$stream"
+    done < "$tmp/versions"
+done
+
+awk -v tool="$prog" -v tool_version="$tool_version" \
+    -v recipes="$recipe_count" -v patched="$patched_count" \
+    -v roots="$roots" -v json="$json" -v quiet="$quiet" -v strict="$strict" \
+    -f "$tmp/audit.awk" "$stream"

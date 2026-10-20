@@ -1,0 +1,119 @@
+#!/bin/sh
+
+set -eu
+
+checker=${1:-"$(dirname "$0")/../../extra/kiss-patch-audit/files/kiss-patch-audit"}
+tmp=${TMPDIR:-/tmp}/kiss-patch-audit-test.$$
+repo=$tmp/repo
+warn=$tmp/warn
+
+cleanup() {
+    rm -rf "$tmp"
+}
+
+trap cleanup EXIT HUP INT TERM
+
+make_recipe() {
+    mkdir -p "$1/patches"
+    printf '1.0 1\n' > "$1/version"
+    printf '#!/bin/sh -e\n\nfor patch in *.patch; do\n    patch -p1 < "$patch"\ndone\n' > "$1/build"
+}
+
+# A recipe whose patches are listed and applied: it must not be reported.
+make_recipe "$repo/core/clean"
+printf 'https://example.com/clean-1.0.tar.gz\npatches/good.patch\n' > "$repo/core/clean/sources"
+: > "$repo/core/clean/patches/good.patch"
+
+# A patch that sources never lists: it is never copied and never applied.
+make_recipe "$repo/core/orphan"
+printf 'https://example.com/orphan-1.0.tar.gz\n' > "$repo/core/orphan/sources"
+: > "$repo/core/orphan/patches/never-listed.patch"
+
+# A recipe whose build never applies any patch.
+make_recipe "$repo/core/stack"
+printf 'https://example.com/stack-1.0.tar.gz\npatches/dead.patch\n' > "$repo/core/stack/sources"
+printf '#!/bin/sh -e\n\nmake\n' > "$repo/core/stack/build"
+: > "$repo/core/stack/patches/dead.patch"
+
+# A patch listed in sources that does not exist on disk.
+make_recipe "$repo/core/ghost"
+printf 'https://example.com/ghost-1.0.tar.gz\npatches/missing.patch\n' > "$repo/core/ghost/sources"
+
+# A series that does not list every copied patch.
+make_recipe "$repo/core/series"
+printf 'https://example.com/series-1.0.tar.gz\npatches/series\npatches/first.patch\npatches/second.patch\n' > "$repo/core/series/sources"
+printf '#!/bin/sh -e\n\nwhile read -r p; do\n    patch -p1 < "$p"\ndone < series\n' > "$repo/core/series/build"
+: > "$repo/core/series/patches/first.patch"
+: > "$repo/core/series/patches/second.patch"
+printf 'first.patch\n' > "$repo/core/series/patches/series"
+
+# A patch listed in sources as a remote URL: KISS downloads it, so it is
+# not a missing local file and the audit must not report it.
+make_recipe "$repo/core/remote"
+printf 'https://example.com/remote-1.0.tar.gz\nhttps://example.com/vendor-1.0.patch\n' > "$repo/core/remote/sources"
+
+# A patch whose name cites a version the recipe does not build.
+make_recipe "$repo/core/stale"
+printf '2.0 1\n' > "$repo/core/stale/version"
+printf 'https://example.com/stale-2.0.tar.gz\npatches/stale-1.0-fix.patch\n' > "$repo/core/stale/sources"
+: > "$repo/core/stale/patches/stale-1.0-fix.patch"
+
+# A recipe whose sources order is not the order of application: a warning
+# only, so it must not fail the audit unless --strict is given.
+make_recipe "$warn/core/drift"
+printf 'https://example.com/drift-1.0.tar.gz\npatches/second.patch\npatches/first.patch\n' > "$warn/core/drift/sources"
+: > "$warn/core/drift/patches/first.patch"
+: > "$warn/core/drift/patches/second.patch"
+
+if output=$("$checker" "$repo" 2>&1); then
+    status=0
+else
+    status=$?
+fi
+
+[ "$status" -eq 1 ] || {
+    printf 'expected exit status 1 for a repository with errors, got %s\n' "$status" >&2
+    printf '%s\n' "$output" >&2
+    exit 1
+}
+
+printf '%s\n' "$output" | grep -F 'DEAD-PATCH' >/dev/null
+printf '%s\n' "$output" | grep -F 'never-listed.patch' >/dev/null
+printf '%s\n' "$output" | grep -F 'DEAD-STACK' >/dev/null
+printf '%s\n' "$output" | grep -F 'MISSING-PATCH' >/dev/null
+printf '%s\n' "$output" | grep -F 'SERIES-DRIFT' >/dev/null
+printf '%s\n' "$output" | grep -F 'STALE-PATCH' >/dev/null
+
+if printf '%s\n' "$output" | grep -F 'clean' >/dev/null; then
+    printf 'the clean recipe produced findings\n' >&2
+    printf '%s\n' "$output" >&2
+    exit 1
+fi
+
+if printf '%s\n' "$output" | grep -F 'remote' >/dev/null; then
+    printf 'a remote patch source must not be reported as a missing local file\n' >&2
+    printf '%s\n' "$output" >&2
+    exit 1
+fi
+
+json=$("$checker" --json "$repo" || true)
+printf '%s\n' "$json" | grep -F '"tool": "kiss-patch-audit"' >/dev/null
+printf '%s\n' "$json" | grep -F '"code": "DEAD-PATCH"' >/dev/null
+printf '%s\n' "$json" | grep -F '"code": "MISSING-PATCH"' >/dev/null
+
+warn_output=$("$checker" "$warn" 2>&1) && status=0 || status=$?
+[ "$status" -eq 0 ] || {
+    printf 'a warning only repository must not fail the audit\n' >&2
+    printf '%s\n' "$warn_output" >&2
+    exit 1
+}
+printf '%s\n' "$warn_output" | grep -F 'ORDER-DRIFT' >/dev/null
+
+if "$checker" --strict "$warn" >/dev/null 2>&1; then
+    printf 'a warning only repository must fail with --strict\n' >&2
+    exit 1
+fi
+
+"$checker" --help >/dev/null
+
+printf 'kiss-patch-audit: all tests passed\n'
