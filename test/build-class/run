@@ -1,0 +1,73 @@
+#!/bin/sh
+# Pruebas herméticas de tools/build-class.sh.
+# Sin red, sin tocar el sistema instalado: solo PATH, RAM y núcleos simulados.
+
+set -e
+
+here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+tool="$here/../../tools/build-class.sh"
+fail=0
+
+check() {
+    desc=$1 expected=$2 actual=$3
+    if [ "$expected" = "$actual" ]; then
+        printf 'ok   %s\n' "$desc"
+    else
+        printf 'FAIL %s (esperado: %s, obtenido: %s)\n' "$desc" "$expected" "$actual"
+        fail=1
+    fi
+}
+
+# RAM disponible simulada: 7032832 KB (~6.7 GiB), 16 hilos visibles.
+MEM=7032832
+NP=16
+
+check "heavy jobs con 6.7G/16 hilos" 3 \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy jobs)"
+check "medium jobs con 6.7G/16 hilos" 6 \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium jobs)"
+check "light jobs con 6.7G/16 hilos (sin pasar de nproc)" 15 \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" light jobs)"
+check "link siempre 1 trabajo" 1 \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" link jobs)"
+
+# RAM insuficiente: la reserva deja usable=0 -> nunca menos de 1 trabajo.
+check "heavy con RAM mínima se recorta a 1" 1 \
+    "$(BUILD_CLASS_MEM_KB=524288 BUILD_CLASS_NPROC=$NP "$tool" heavy jobs)"
+check "light con RAM mínima se recorta a 1" 1 \
+    "$(BUILD_CLASS_MEM_KB=524288 BUILD_CLASS_NPROC=$NP "$tool" light jobs)"
+
+# Tope de nproc: poca máquina pero RAM de sobra.
+check "light respeta nproc=2" 2 \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=2 "$tool" light jobs)"
+
+# Flags por clase.
+check "light usa -O3" "-O3 -pipe -march=native -mtune=native" \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" light cflags)"
+check "heavy usa -O2" "-O2 -pipe -march=native -mtune=native" \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy cflags)"
+
+check "makeflags acompaña a jobs" "-j3" \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy makeflags)"
+check "ldflags usa lld y limita hilos a 4" "-fuse-ld=lld -Wl,--threads=3 -Wl,-O2 -Wl,-s" \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" heavy ldflags)"
+check "ldflags de light topea hilos en 4" "-fuse-ld=lld -Wl,--threads=4 -Wl,-O2 -Wl,-s" \
+    "$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" light ldflags)"
+
+# env emite las cuatro variables.
+env_out=$(BUILD_CLASS_MEM_KB=$MEM BUILD_CLASS_NPROC=$NP "$tool" medium env)
+check "env exporta CFLAGS" 1 "$(printf '%s\n' "$env_out" | grep -c '^export CFLAGS=')"
+check "env exporta MAKEFLAGS" 1 "$(printf '%s\n' "$env_out" | grep -c '^export MAKEFLAGS=')"
+
+# Errores de uso: clase o campo desconocidos -> salida 2.
+rc=0; "$tool" no-such-class jobs >/dev/null 2>&1 || rc=$?
+check "clase desconocida sale con 2" 2 "$rc"
+rc=0; "$tool" heavy no-such-field >/dev/null 2>&1 || rc=$?
+check "campo desconocido sale con 2" 2 "$rc"
+
+if [ "$fail" -eq 0 ]; then
+    echo "build-class: todas las pruebas pasan"
+else
+    echo "build-class: hay fallos" >&2
+    exit 1
+fi

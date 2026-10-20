@@ -15,7 +15,7 @@ WORK="${WEBKIT_BUILD_DIR:-$HOME/webkit-build}"
 VER="$(cut -d' ' -f1 "$RECIPE/version")"
 TARBALL="$HOME/.cache/kiss/sources/webkitgtk/webkitgtk-$VER.tar.xz"
 SRCDIR="$WORK/webkitgtk-$VER"
-JOBS="${JOBS:-16}"
+JOBS="${JOBS:-$("$SPRINT/tools/build-class.sh" heavy jobs)}"
 
 apply_patches() {
 	cd "$SRCDIR"
