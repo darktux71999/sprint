@@ -1,2 +1,6 @@
 https://archive.mesa3d.org/mesa-26.2.4.tar.xz
-patches/nak-sustga-channel-mask.patch
+patches/0001-nak-sustga-channel-mask.patch
+patches/0002-nvc0-clear-video-tiles.patch
+patches/0003-nvc0-clear-rt-level-dims.patch
+patches/0005-vl-compositor-interlaced-dst.patch
+patches/0006-vl-compositor-rgb-to-yuv-interlaced.patch

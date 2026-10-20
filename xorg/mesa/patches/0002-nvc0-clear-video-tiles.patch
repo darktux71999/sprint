@@ -1,0 +1,142 @@
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
+@@ -297,11 +297,13 @@
+    struct nouveau_pushbuf *push = nvc0->base.pushbuf;
+    struct nv50_surface *sf = nv50_surface(dst);
+    struct nv04_resource *res = nv04_resource(sf->base.texture);
+-   unsigned z;
++   unsigned depth = dst->last_layer - dst->first_layer + 1;
+ 
+    assert(dst->texture->target != PIPE_BUFFER);
+ 
+-   if (!PUSH_SPACE(push, 32 + sf->depth))
++   if (!PUSH_SPACE(push, 32 + (16 + depth) *
++                             ((height + NVC0_TILE_SIZE_Y(0x10) - 1) /
++                              NVC0_TILE_SIZE_Y(0x10))))
+       return;
+ 
+    PUSH_REF1 (push, res->bo, res->domain | NOUVEAU_BO_WR);
+@@ -312,59 +314,77 @@
+    PUSH_DATAf(push, color->f[2]);
+    PUSH_DATAf(push, color->f[3]);
+ 
+-   BEGIN_NVC0(push, NVC0_3D(SCREEN_SCISSOR_HORIZ), 2);
+-   PUSH_DATA (push, ( width << 16) | dstx);
+-   PUSH_DATA (push, (height << 16) | dsty);
++   {
++      struct nv50_miptree *mt = nouveau_bo_memtype(res->bo) ?
++         nv50_miptree(dst->texture) : NULL;
++      bool video_tiles = mt && mt->level[sf->base.level].tile_mode == 0x10;
++      unsigned slice_h = video_tiles ? NVC0_TILE_SIZE_Y(0x10) : height;
++      unsigned y0, zz;
+ 
+-   BEGIN_NVC0(push, NVC0_3D(RT_CONTROL), 1);
+-   PUSH_DATA (push, 1);
+-   BEGIN_NVC0(push, NVC0_3D(RT_ADDRESS_HIGH(0)), 9);
+-   PUSH_DATAh(push, res->address + sf->offset);
+-   PUSH_DATA (push, res->address + sf->offset);
+-   if (likely(nouveau_bo_memtype(res->bo))) {
+-      struct nv50_miptree *mt = nv50_miptree(dst->texture);
++      for (y0 = 0; y0 < height; y0 += slice_h) {
++         unsigned slice = MIN2(slice_h, height - y0);
+ 
+-      PUSH_DATA(push, sf->width);
+-      PUSH_DATA(push, sf->height);
+-      PUSH_DATA(push, nvc0_format_table[dst->format].rt);
+-      PUSH_DATA(push, (mt->layout_3d << 16) |
+-               mt->level[sf->base.level].tile_mode);
+-      PUSH_DATA(push, dst->first_layer + sf->depth);
+-      PUSH_DATA(push, mt->layer_stride >> 2);
+-      PUSH_DATA(push, dst->first_layer);
+-      IMMED_NVC0(push, NVC0_3D(MULTISAMPLE_MODE), mt->ms_mode);
+-   } else {
+-      if (res->base.target == PIPE_BUFFER) {
+-         PUSH_DATA(push, 262144);
+-         PUSH_DATA(push, 1);
+-      } else {
+-         PUSH_DATA(push, nv50_miptree(&res->base)->level[0].pitch);
+-         PUSH_DATA(push, sf->height);
+-      }
+-      PUSH_DATA(push, nvc0_format_table[sf->base.format].rt);
+-      PUSH_DATA(push, 1 << 12);
+-      PUSH_DATA(push, 1);
+-      PUSH_DATA(push, 0);
+-      PUSH_DATA(push, 0);
++         for (zz = 0; zz < depth; ++zz) {
++            uint64_t addr = res->address +
++               (mt ? mt->level[dst->level].offset : sf->offset);
+ 
+-      IMMED_NVC0(push, NVC0_3D(ZETA_ENABLE), 0);
+-      IMMED_NVC0(push, NVC0_3D(MULTISAMPLE_MODE), 0);
++            if (mt)
++               addr += (uint64_t)(dst->first_layer + zz) * mt->layer_stride;
++            if (video_tiles)
++               addr += (uint64_t)(dsty + y0) * mt->level[sf->base.level].pitch;
+ 
+-      /* tiled textures don't have to be fenced, they're not mapped directly */
+-      nvc0_resource_fence(nvc0, res, NOUVEAU_BO_WR);
+-   }
++            BEGIN_NVC0(push, NVC0_3D(SCREEN_SCISSOR_HORIZ), 2);
++            PUSH_DATA (push, ( width << 16) | dstx);
++            PUSH_DATA (push, (  slice << 16) | (video_tiles ? 0 : dsty));
+ 
+-   if (!render_condition_enabled)
+-      IMMED_NVC0(push, NVC0_3D(COND_MODE), NVC0_3D_COND_MODE_ALWAYS);
++            BEGIN_NVC0(push, NVC0_3D(RT_CONTROL), 1);
++            PUSH_DATA (push, 1);
++            BEGIN_NVC0(push, NVC0_3D(RT_ADDRESS_HIGH(0)), 9);
++            PUSH_DATAh(push, addr);
++            PUSH_DATA (push, addr);
++            if (likely(mt)) {
++               PUSH_DATA(push, video_tiles ?
++                        mt->level[sf->base.level].pitch : sf->width);
++               PUSH_DATA(push, video_tiles ? slice : sf->height);
++               PUSH_DATA(push, nvc0_format_table[dst->format].rt);
++               PUSH_DATA(push, (mt->layout_3d << 16) |
++                        mt->level[sf->base.level].tile_mode);
++               PUSH_DATA(push, 1);
++               PUSH_DATA(push, mt->layer_stride >> 2);
++               PUSH_DATA(push, 0);
++               IMMED_NVC0(push, NVC0_3D(MULTISAMPLE_MODE), mt->ms_mode);
++            } else {
++               if (res->base.target == PIPE_BUFFER) {
++                  PUSH_DATA(push, 262144);
++                  PUSH_DATA(push, 1);
++               } else {
++                  PUSH_DATA(push, nv50_miptree(&res->base)->level[0].pitch);
++                  PUSH_DATA(push, sf->height);
++               }
++               PUSH_DATA(push, nvc0_format_table[sf->base.format].rt);
++               PUSH_DATA(push, 1 << 12);
++               PUSH_DATA(push, 1);
++               PUSH_DATA(push, 0);
++               PUSH_DATA(push, 0);
+ 
+-   BEGIN_NIC0(push, NVC0_3D(CLEAR_BUFFERS), sf->depth);
+-   for (z = 0; z < sf->depth; ++z) {
+-      PUSH_DATA (push, 0x3c |
+-                 (z << NVC0_3D_CLEAR_BUFFERS_LAYER__SHIFT));
+-   }
++               IMMED_NVC0(push, NVC0_3D(ZETA_ENABLE), 0);
++               IMMED_NVC0(push, NVC0_3D(MULTISAMPLE_MODE), 0);
+ 
+-   if (!render_condition_enabled)
+-      IMMED_NVC0(push, NVC0_3D(COND_MODE), nvc0->cond_condmode);
++               /* tiled textures don't have to be fenced, they're not mapped directly */
++               nvc0_resource_fence(nvc0, res, NOUVEAU_BO_WR);
++            }
++
++            if (!render_condition_enabled)
++               IMMED_NVC0(push, NVC0_3D(COND_MODE), NVC0_3D_COND_MODE_ALWAYS);
++
++            BEGIN_NIC0(push, NVC0_3D(CLEAR_BUFFERS), 1);
++            PUSH_DATA (push, 0x3c);
++
++            if (!render_condition_enabled)
++               IMMED_NVC0(push, NVC0_3D(COND_MODE), nvc0->cond_condmode);
++         }
++      }
++   }
+ 
+    nvc0->dirty_3d |= NVC0_NEW_3D_FRAMEBUFFER;
+ }

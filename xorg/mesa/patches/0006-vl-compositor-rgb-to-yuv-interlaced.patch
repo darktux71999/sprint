@@ -1,0 +1,71 @@
+--- a/src/gallium/auxiliary/vl/vl_compositor.c
++++ b/src/gallium/auxiliary/vl/vl_compositor.c
+@@ -840,6 +840,55 @@
+    u_sampler_view_default_template(&sv_templ, src_res, src_res->format);
+    sv = s->pipe->create_sampler_view(s->pipe, src_res, &sv_templ);
+ 
++   if (dst->interlaced) {
++      const unsigned nr_planes = util_format_get_num_planes(dst->buffer_format);
++      unsigned plane, field;
++
++      /* Interlaced buffers keep each field of each plane in its own surface
++       * layer (surfaces[plane * 2 + field]). Render every field separately,
++       * halving the destination area so the draw stays inside the field
++       * surface bounds. The shader only samples tc, so each field's source
++       * rows are selected by shifting the source half a line towards the
++       * matching row centers; without the shift the sampler lands between
++       * two rows and blends both fields. */
++      for (plane = 0; plane < nr_planes; ++plane) {
++         enum vl_compositor_plane yuv_plane =
++            plane == 0 ? VL_COMPOSITOR_PLANE_Y :
++            nr_planes == 2 ? VL_COMPOSITOR_PLANE_UV :
++            plane == 1 ? VL_COMPOSITOR_PLANE_U : VL_COMPOSITOR_PLANE_V;
++         struct u_rect plane_rect;
++
++         plane_rect.x0 = util_format_get_plane_width(dst->buffer_format, plane, dst_rect->x0);
++         plane_rect.x1 = util_format_get_plane_width(dst->buffer_format, plane, dst_rect->x1);
++         plane_rect.y0 = util_format_get_plane_height(dst->buffer_format, plane, dst_rect->y0) / 2;
++         plane_rect.y1 = util_format_get_plane_height(dst->buffer_format, plane, dst_rect->y1) / 2;
++
++         for (field = 0; field < 2; ++field) {
++            struct pipe_surface *dst_surface = &dst_surfaces[plane * 2 + field];
++            struct vl_compositor_layer *layer = &s->layers[0];
++            float half_a_line;
++
++            if (!dst_surface->texture)
++               continue;
++
++            set_rgb_to_yuv_layer(s, c, 0, sv, src_rect, NULL, yuv_plane);
++            half_a_line = 0.5f / layer->zw.y;
++            if (field) {
++               layer->src.tl.y += half_a_line;
++               layer->src.br.y += half_a_line;
++            } else {
++               layer->src.tl.y -= half_a_line;
++               layer->src.br.y -= half_a_line;
++            }
++            vl_compositor_set_layer_dst_area(s, 0, &plane_rect);
++            vl_compositor_render(s, c, dst_surface, NULL, false);
++         }
++      }
++
++      s->pipe->sampler_view_release(s->pipe, sv);
++      return;
++   }
++
+    set_rgb_to_yuv_layer(s, c, 0, sv, src_rect, NULL, VL_COMPOSITOR_PLANE_Y);
+    vl_compositor_set_layer_dst_area(s, 0, dst_rect);
+    vl_compositor_render(s, c, &dst_surfaces[0], NULL, false);
+--- a/src/gallium/auxiliary/vl/vl_compositor_proc.c
++++ b/src/gallium/auxiliary/vl/vl_compositor_proc.c
+@@ -93,6 +93,10 @@
+       /* RGB to YUV */
+       vl_csc_get_rgbyuv_matrix(param->out_matrix_coefficients, src->buffer_format, dst->buffer_format,
+                                param->in_color_range, param->out_color_range, &proc->cstate.rgb2yuv);
++      /* The GFX path feeds fs_rgb_yuv from csc_matrix (rgb2yuv is only for
++       * the compute path), so fill both like the sibling branches do. */
++      vl_csc_get_rgbyuv_matrix(param->out_matrix_coefficients, src->buffer_format, dst->buffer_format,
++                               param->in_color_range, param->out_color_range, &proc->cstate.csc_matrix);
+    }
+ 
+    vl_csc_get_primaries_matrix(param->in_color_primaries, param->out_color_primaries,

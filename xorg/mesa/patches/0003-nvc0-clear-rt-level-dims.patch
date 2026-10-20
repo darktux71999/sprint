@@ -1,0 +1,36 @@
+--- a/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
++++ b/src/gallium/drivers/nouveau/nvc0/nvc0_surface.c
+@@ -314,6 +314,12 @@
+ 
+    assert(dst->texture->target != PIPE_BUFFER);
+ 
++   /* Hand-filled pipe_surface templates (vl_video_buffer) leave the
++    * nv50_surface extras as garbage; derive the real level dimensions
++    * like the offset/depth handling below. */
++   const unsigned lvl_w = u_minify(dst->texture->width0, dst->level);
++   const unsigned lvl_h = u_minify(dst->texture->height0, dst->level);
++
+    if (!PUSH_SPACE(push, 32 + (16 + depth) *
+                              ((height + NVC0_TILE_SIZE_Y(0x10) - 1) /
+                               NVC0_TILE_SIZE_Y(0x10))))
+@@ -357,8 +363,9 @@
+             PUSH_DATA (push, addr);
+             if (likely(mt)) {
+                PUSH_DATA(push, video_tiles ?
+-                        mt->level[sf->base.level].pitch : sf->width);
+-               PUSH_DATA(push, video_tiles ? slice : sf->height);
++                        mt->level[sf->base.level].pitch :
++                        (lvl_w << mt->ms_x));
++               PUSH_DATA(push, video_tiles ? slice : (lvl_h << mt->ms_y));
+                PUSH_DATA(push, nvc0_format_table[dst->format].rt);
+                PUSH_DATA(push, (mt->layout_3d << 16) |
+                         mt->level[sf->base.level].tile_mode);
+@@ -372,7 +379,7 @@
+                   PUSH_DATA(push, 1);
+                } else {
+                   PUSH_DATA(push, nv50_miptree(&res->base)->level[0].pitch);
+-                  PUSH_DATA(push, sf->height);
++                  PUSH_DATA(push, lvl_h);
+                }
+                PUSH_DATA(push, nvc0_format_table[sf->base.format].rt);
+                PUSH_DATA(push, 1 << 12);
