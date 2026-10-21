@@ -167,50 +167,66 @@ if [ "${LLVM_PGO:-0}" = 1 ]; then
         echo "       y despues relanza el build con LLVM_PGO=1" >&2
     fi
 
-    echo "-> PGO: primera pasada instrumentada"
-    EXTRA_C_FLAGS="-fprofile-generate=$PROFILE_DIR"
-    EXTRA_CXX_FLAGS="-fprofile-generate=$PROFILE_DIR"
-    EXTRA_LD_FLAGS="-fprofile-generate=$PROFILE_DIR"
-    configure
-    EXTRA_C_FLAGS=
-    EXTRA_CXX_FLAGS=
-    EXTRA_LD_FLAGS=
-    cmake --build . -j "$jobs"
+    if [ -f "$PROF_DATA" ]; then
+        # El perfil ya esta: se reutiliza y NO se limpia el build, para que
+        # los objetos ya construidos con el perfil se aprovechen (el build
+        # se queda como no-op). Asi se puede relanzar un build que fallo al
+        # final (por ejemplo en el paso de BOLT) sin repetir las 4 horas.
+        echo "-> PGO: se reutiliza el perfil existente"
+        profile_nuevo=0
+    else
+        profile_nuevo=1
 
-    echo "-> PGO: entrenamiento"
-    # El perfil sale de compilar codigo pesado con el clang instrumentado,
-    # que es el flujo que usa upstream: se reconstruye la parte caliente del
-    # compilador (IR, optimizador y backend X86) con el clang ya instrumentado.
-    cd ..
-    rm -rf build-train
-    mkdir -p build-train
-    cd build-train
-    configure \
-        -DCMAKE_C_COMPILER="$PWD/../build/bin/clang" \
-        -DCMAKE_CXX_COMPILER="$PWD/../build/bin/clang++" \
-        -DCMAKE_AR="$PWD/../build/bin/llvm-ar" \
-        -DCMAKE_RANLIB="$PWD/../build/bin/llvm-ranlib" \
-        -DCMAKE_NM="$PWD/../build/bin/llvm-nm"
-    # Los targets de cmake: el backend se declara con
-    # add_llvm_component_group(X86), asi que el target es "X86" (la
-    # biblioteca que produce se llama libLLVMTargetX86.a).
-    # Se construyen de uno en uno para que un target que falle no impida
-    # entrenar con los demas.
-    for target in LLVMCore LLVMCodeGen X86; do
-        cmake --build . -j "$jobs" --target "$target" || \
-            echo "AVISO: no se pudo construir $target para el entrenamiento" >&2
-    done
-    cd ../build
+        echo "-> PGO: primera pasada instrumentada"
+        EXTRA_C_FLAGS="-fprofile-generate=$PROFILE_DIR"
+        EXTRA_CXX_FLAGS="-fprofile-generate=$PROFILE_DIR"
+        EXTRA_LD_FLAGS="-fprofile-generate=$PROFILE_DIR"
+        configure
+        EXTRA_C_FLAGS=
+        EXTRA_CXX_FLAGS=
+        EXTRA_LD_FLAGS=
+        cmake --build . -j "$jobs"
 
-    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
-        "$PWD/bin/llvm-profdata" merge -output="$PROF_DATA" \
-            "$PROFILE_DIR"/*.profraw
+        echo "-> PGO: entrenamiento"
+        # El perfil sale de compilar codigo pesado con el clang instrumentado,
+        # que es el flujo que usa upstream: se reconstruye la parte caliente del
+        # compilador (IR, optimizador y backend X86) con el clang ya instrumentado.
+        cd ..
+        rm -rf build-train
+        mkdir -p build-train
+        cd build-train
+        configure \
+            -DCMAKE_C_COMPILER="$PWD/../build/bin/clang" \
+            -DCMAKE_CXX_COMPILER="$PWD/../build/bin/clang++" \
+            -DCMAKE_AR="$PWD/../build/bin/llvm-ar" \
+            -DCMAKE_RANLIB="$PWD/../build/bin/llvm-ranlib" \
+            -DCMAKE_NM="$PWD/../build/bin/llvm-nm"
+        # Los targets de cmake: el backend se declara con
+        # add_llvm_component_group(X86), asi que el target es "X86" (la
+        # biblioteca que produce se llama libLLVMTargetX86.a).
+        # Se construyen de uno en uno para que un target que falle no impida
+        # entrenar con los demas.
+        for target in LLVMCore LLVMCodeGen X86; do
+            cmake --build . -j "$jobs" --target "$target" || \
+                echo "AVISO: no se pudo construir $target para el entrenamiento" >&2
+        done
+        cd ../build
+
+        if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
+            "$PWD/bin/llvm-profdata" merge -output="$PROF_DATA" \
+                "$PROFILE_DIR"/*.profraw
+        fi
     fi
 
     if [ -f "$PROF_DATA" ]; then
         echo "-> PGO: segunda pasada con el perfil"
-        cmake --build . --target clean
-        rm -rf CMakeCache.txt CMakeFiles
+        if [ "$profile_nuevo" = 1 ]; then
+            # Solo si el perfil se acaba de generar: si ya existia, los
+            # objetos ya estan construidos con el perfil y limpiarlos seria
+            # tirar las horas de compilacion.
+            cmake --build . --target clean
+            rm -rf CMakeCache.txt CMakeFiles
+        fi
         EXTRA_C_FLAGS="-fprofile-instr-use=$PROF_DATA"
         EXTRA_CXX_FLAGS="-fprofile-instr-use=$PROF_DATA"
         EXTRA_LD_FLAGS="-fprofile-instr-use=$PROF_DATA"
