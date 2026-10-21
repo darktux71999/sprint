@@ -311,3 +311,17 @@ NVMe. Si el disco falla o devuelve datos corruptos:
 
 Comprobaciones útiles: `ccache -s` (tasa de aciertos, tamaño), `df -h
 ~/.cache` (espacio), y los logs del kernel en busca de errores `nvme`.
+
+### ccache y los response files
+
+ccache 4.14 **no expande los response files** (`@archivo`), que es como LLVM
+pasa los flags al compilador. Si se usara como launcher, la clave no
+incluiría el nivel de optimización y podría devolver **objetos obsoletos**
+en un binario. Por eso la receta de llvm **no** activa ccache: ese build es
+único y el riesgo no compensa. En el resto del árbol (autotools y cmake, sin
+response files) sí es seguro, y es donde el ccache rinde: un rebuild con las
+mismas flags es casi instantáneo.
+
+Recordar además que KISS verifica los checksums **antes** de construir: un
+`kiss c` pendiente rompe el build con "Checksum mismatch", y para ficheros
+locales los hashes son **b3sum de 33 bytes** (`b3sum -l 33`), no sha256.
