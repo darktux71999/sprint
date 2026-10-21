@@ -242,6 +242,29 @@ perfil alcance también al Rust) y `--enable-lto=thin,cross` mete al motor en
 el LTO. La receta lo expone con `FIREFOX_LTO`, `FIREFOX_PGO=1` y
 `FIREFOX_RUST_EXTRA_FLAGS`.
 
+## Frecuencia de CPU
+
+El gobernador `schedutil` (el que había) dejaba la CPU entre **1,2 y 2,2 GHz**
+durante los builds, sin acercarse al máximo de la E5-2640 v3 (3,4 GHz con un
+núcleo, 2,9 GHz con todos). Con el gobernador `performance` la máquina trabaja
+a **2,8-3,0 GHz**: un 30-40% más de reloj en los núcleos que compilan, y el
+enlace (que es de un solo hilo) va a la frecuencia máxima.
+
+El precio: con `performance` los núcleos **ociosos también se quedan a la
+máxima**, así que hay más consumo en reposo y más calor. El cambio es
+persistente en `core/sprint-config` (`/etc/rc.d/cpu-governor.boot`); para
+volver al equilibrio:
+
+```sh
+for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    echo schedutil > "$g"
+done
+```
+
+Esto y el tope de jobs se refuerzan: con 4 trabajos de 8 núcleos físicos la
+CPU no está saturada, y el turbo tiene margen para subir más alto que si
+compilasen los 8.
+
 ## Enlaces y LTO
 
 - Enlazador: `lld` con `--threads=N` limitado (máximo 4) y `-Wl,-O2`.

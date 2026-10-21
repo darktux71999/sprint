@@ -42,6 +42,11 @@ puede necesitar los parches de `docs/nouveau-misaligned-reg.md` rehechos.
    Los códigos `MISSING-PATCH`, `DEAD-PATCH` y `ORDER-DRIFT` avisan de lo que
    va a fallar. Un parche que no aplica se corrige o se retira (con su
    `checksum` regenerado por `kiss c`).
+   > Ojo: `kiss c` **siempre** después de tocar la receta. KISS verifica los
+   > checksums antes de construir, así que un `kiss c` pendiente rompe el
+   > build con "Checksum mismatch". Y para ficheros locales KISS no usa
+   > sha256 sino **b3sum de 33 bytes** (`b3sum -l 33`), que es lo que va en
+   > `checksums` y en `etcsums`: un sha256 calculado a mano no sirve.
 2. **Elegir la clase** del paquete (ver `docs/build-optimization.md`) y exportar
    su perfil antes de compilar:
    ```sh
