@@ -191,8 +191,15 @@ if [ "${LLVM_PGO:-0}" = 1 ]; then
         -DCMAKE_AR="$PWD/../build/bin/llvm-ar" \
         -DCMAKE_RANLIB="$PWD/../build/bin/llvm-ranlib" \
         -DCMAKE_NM="$PWD/../build/bin/llvm-nm"
-    cmake --build . -j "$jobs" --target LLVMCore LLVMCodeGen LLVMTargetX86 || \
-        echo "AVISO: el entrenamiento fallo; se continua sin PGO" >&2
+    # Los targets de cmake: el backend se declara con
+    # add_llvm_component_group(X86), asi que el target es "X86" (la
+    # biblioteca que produce se llama libLLVMTargetX86.a).
+    # Se construyen de uno en uno para que un target que falle no impida
+    # entrenar con los demas.
+    for target in LLVMCore LLVMCodeGen X86; do
+        cmake --build . -j "$jobs" --target "$target" || \
+            echo "AVISO: no se pudo construir $target para el entrenamiento" >&2
+    done
     cd ../build
 
     if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
