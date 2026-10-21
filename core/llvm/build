@@ -152,7 +152,10 @@ if [ "${LLVM_PGO:-0}" = 1 ]; then
     # LLVM_PGO_PROFILE_DIR, no existen en esta version: el cmake solo conoce
     # LLVM_BUILD_INSTRUMENTED y LLVM_PROFDATA_FILE, y con lld la variante
     # instrumentada no llega a la linea de enlace.)
-    PROFILE_DIR="$PWD/pgo-profile"
+    # El perfil vive FUERA del directorio de build: KISS borra el build al
+    # empezar una construccion, asi que dentro se perderia. Ademas asi el
+    # perfil sobrevive a un fallo y el entrenamiento se puede reutilizar.
+    PROFILE_DIR="${LLVM_PGO_DIR:-$HOME/.cache/llvm-pgo}"
     PROF_DATA="$PROFILE_DIR/merged.profdata"
     mkdir -p "$PROFILE_DIR"
 
