@@ -232,11 +232,21 @@ entrenamiento; BOLT necesita instrumentar y recoger un perfil.
 | `ffmpeg` | muchos | ✓✓ (transcodificar) | ✓ | **PGO** ✓✓ (el caso clásico), LTO marginal, BOLT ✓ |
 | `rust` | miles | ✓ | ✓ | se beneficia del toolchain (PGO/BOLT de LLVM) |
 | `busybox` | cientos | ✓ (applets) | ✗ | **ThinLTO** ✓✓, **PGO** ✓ (medido: sed 15% mas rapido) |
-| `git` | cientos | ✓ (indexar/diff) | ✗ | **ThinLTO** ✓, **PGO** ✓ (solo con carga realista) |
 | `mksh` | ~25 | ✓ (shell) | ✗ | **ThinLTO** ✓, **PGO** ✓✓ (medido: 11% mas rapido) |
 | `make` | ~40 | ✓ (parsear) | ✗ | **ThinLTO** ✓, **PGO** ✓ (medido: 5% mas rapido) |
+| `git` | cientos | ✓ (indexar/diff) | ✗ | **nada: el ThinLTO resulto ser una regresion** (medido: 7% mas lento) |
 | librerías C (`zlib`, `openssl`…) | pocos | — | — | nada: `-O2`/`-O3` + `lld` ya basta |
 | CLIs (`ls`, `grep`, `sed`) | 1-10 | — | ✗ | nada: BOLT no aporta en procesos de un segundo |
+
+Que `git` salga en la lista de "nada" no es un descuido: se construyo con
+ThinLTO y con ThinLTO+PGO, se midio (rondas alternadas, cuatro por variante)
+y las dos variantes salian **5-10% mas lentas** que el binario original
+(`log -p`: 148-150 ms contra 157-167 ms). Se aislo la causa construyendo una
+variante solo con ThinLTO, y la regresion viene del LTO, no del PGO. Se
+revierte la receta de git a la original. La leccion: **el criterio de este
+documento hay que aplicarlo midiendo**, no suponiendo; y hay casos en los que
+el cruce de unidades de traduccion no compensa (git tiene muchas TUs y sus
+rutas calientes estan en el indice y en el diff, no en el codigo compartido).
 
 ### Los binarios base (`BASE_PGO=1`)
 

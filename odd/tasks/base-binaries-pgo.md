@@ -55,15 +55,22 @@ entrada. Un cambio de comportamiento no pedido es un fallo.
   del grafo (`update_file` con 160 contadores, `find_directory` con 1.764).
 - T2 (S2, S3, S4) `git`: ThinLTO + PGO con carga de operaciones reales de git.
   Ruta: inline. Riesgo: ninguno.
-  **Hecho**: recipe con el `configure` **sin** LTO/PGO (con LTO en el
-  configure, cada prueba compila y enlaza con ThinLTO: 9 minutos frente a 1)
-  y los flags en la linea de `make`. Version 2.55.0 2. El perfil se genera
-  con una carga de 200 ficheros y 200 modificaciones (con un repo de tres
-  ficheros el perfil solo recogia el arranque y el PGO no mejoraba nada:
-  16 ms contra 16 ms). El `make clean` de git borra el directorio
-  `oss-fuzz/` y la regla de enlace de los fuzzers no lo recrea, asi que la
-  segunda pasada se caia con "failed to open oss-fuzz/fuzz-...: No such file
-  or directory": se arregla con `mkdir -p oss-fuzz` antes de reconfigurar.
+  **Hecho y REVERTIDO**: con la carga de 200 ficheros y 200 modificaciones el
+  perfil de git queda bien (20.640 funciones), pero la medicion dio una
+  **regresion consistente del 5-10%** (`log -p`: 148-150 ms de la referencia
+  contra 157-167 ms; `status` con 3.000 ficheros: 40 ms contra 44 ms). Para
+  aislar la causa se construyo una variante **solo con ThinLTO, sin PGO**
+  (159-164 ms): la regresion viene del **ThinLTO**, no del PGO, que ademas no
+  anade nada por encima. Se revierte la receta de git a la original y se
+  reconstruye con ella. LECCION: no basta con que el perfil sea
+  representativo, hay que medir; el criterio del doc ya lo decia ("sin carga
+  representativa el perfil no vale, y puede ser peor que no hacerlo"), y aqui
+  el caso fuerte es el inverso: con carga representativa y LTO, tambien.
+  (Durante el camino se encontraron dos trampas: el `configure` de git con
+  LTO tarda 9 minutos frente a 1, porque cada prueba compila y enlaza con
+  ThinLTO; y el `make clean` de git borra el directorio `oss-fuzz/`, cuya
+  regla de enlace no lo recrea, con lo que la segunda pasada del PGO se
+  caia.)
 - T3 (S2, S3, S5) `mksh`: PGO con carga de construcciones de shell. Ruta:
   inline. Riesgo: item 3 (el shell de login) -> copia de respaldo.
   **Hecho**: recipe con ThinLTO + PGO, perfil en `$HOME/.cache/pgo-base/mksh/`
@@ -85,9 +92,20 @@ entrada. Un cambio de comportamiento no pedido es un fallo.
   Android/Unisoc (que si usa `/opt/mdev/usb-android.sh`): se restauro el
   fichero con la regla.
 - T5 (S8) Test de diferencia para los cuatro binarios.
+  **Hecho**: `test/base-bins/run` compara los cuatro binarios nuevos contra
+  los originales (stdout, stderr y codigo de salida) y falla si cambia una
+  sola linea. Las referencias (12 MB de binarios) no se versionan: viven en
+  `/var/cache/sprint-backup/` junto con el `init` de rescate. Detalle: hay
+  que normalizar el nombre del programa en los errores de make y la fecha
+  del banner de busybox (que cambia en cualquier reconstruccion).
 - T6 (S1, S2, S6) Actualizar `docs/build-optimization.md` con la tabla de
   candidatos y el estado.
+  **Hecho**: filas de `busybox`, `mksh` y `make` con las mediciones, `git`
+  con el resultado de la regresion, y una seccion con las cuatro cosas que
+  hacen falta para aplicar esto a un paquete: `AR=llvm-ar`, el `configure`
+  sin LTO/PGO, la carga representativa y la CORE del init y el shell.
 - T7 Cierre: resumen y estado final.
+  **Hecho**: ver L5.
 
 ## Log
 
@@ -104,3 +122,14 @@ L4. Riesgos de sistema detectados: `/sbin/init` y `/bin/init` apuntan a
 `busybox` (o sea, busybox ES el init) y el shell de login del usuario es
 `/bin/mksh`. Por eso el orden es de menor a mayor riesgo y los dos criticos
 llevan copia de respaldo y prueba previa.
+L5. Cierre (2026-10-21). Resultado: **tres de cuatro Improved, uno
+revertido**. `make 4.4.1 2` (ThinLTO+PGO, ~5%), `mksh 59c 2` (ThinLTO+PGO,
+~11%), `busybox 1.38.0 3` (ThinLTO+PGO, ~15% en sed y ~6% en grep), y `git`
+revertido a la receta original (`2.55.0 3`, reconstruido con el toolchain
+actual) porque el ThinLTO resulto ser una regresion del 5-10%. Los cuatro
+pasan el test de diferencia. En el camino: `build_install=0` (KISS construye
+y crea el tarball sin instalar) permitio probar cada binario antes de
+tocar el sistema; el respaldo con `init` de rescate esta en
+`/var/cache/sprint-backup/`. La especificacion S1 (que excluia `musl`) se
+mantiene: una libc con perfil incompleto puede salir mas lenta, y un fallo
+de musl deja el sistema sin arranque.

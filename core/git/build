@@ -1,15 +1,6 @@
 #!/bin/sh -e
 
-# ThinLTO: git son cientos de .c enlazados en varios binarios, de modo que el
-# codigo cruza unidades de traduccion. Con lld el enlace LTO se resuelve sin
-# el plugin gold, pero el archivador tiene que ser el de LLVM: el ar de GNU
-# no entiende el formato bitcode.
-export AR=llvm-ar
-export RANLIB=llvm-ranlib
-export NM=llvm-nm
-
-BASE_CFLAGS="$CFLAGS"
-BASE_LDFLAGS="$LDFLAGS"
+export LDFLAGS="$LDFLAGS -static"
 
 cat > config.mak <<EOF
 NO_GETTEXT=YesPlease
@@ -25,127 +16,16 @@ NO_INSTALL_HARDLINKS=1
 NO_OPENSSL=YesPlease
 EOF
 
-# El configure va SIN los flags de LTO y de PGO: las pruebas de configure no
-# dependen de ellos, y con LTO cada test compila y enlaza con ThinLTO, lo
-# que multiplica por diez el tiempo del configure (9 minutos frente a 1).
-# Los flags llegan en la linea de make, que tiene prioridad sobre lo que el
-# configure dejo horneado en el Makefile.
-configure_git() {
-    CFLAGS="$BASE_CFLAGS" LDFLAGS="$BASE_LDFLAGS" ./configure \
-        --prefix=/usr \
-        --libexecdir=/usr/lib \
-        ac_cv_lib_curl_curl_global_init=yes \
-        ac_cv_snprintf_returns_bogus=no \
-        ac_cv_fread_reads_directories=yes
-}
+./configure \
+    --prefix=/usr \
+    --libexecdir=/usr/lib \
+    ac_cv_lib_curl_curl_global_init=yes \
+    ac_cv_snprintf_returns_bogus=no \
+    ac_cv_fread_reads_directories=yes
 
-build_git() {
-    make NO_RUST=YesPlease \
-        CFLAGS="$1" LDFLAGS="$2" \
-        LIBS="$(curl-config --static-libs) libgit.a -lz"
-}
-
-# PGO con la interfaz de clang: -fprofile-generate escribe .profraw,
-# llvm-profdata los fusiona en un .profdata y -fprofile-instr-use lo aplica.
-# (La interfaz de gcc, con -fprofile-use y .gcda, no sirve aqui: el
-# compilador del sistema es clang.)
-# El perfil vive FUERA del arbol de build: KISS borra el arbol al empezar y
-# al terminar, y un reinicio lo perdia (leccion de la fase 2 de llvm). El
-# directorio es por paquete para que los perfiles no se mezclen.
-BASE_PGO_ROOT="${BASE_PGO_DIR:-$HOME/.cache/pgo-base}"
-PROFILE_DIR="$BASE_PGO_ROOT/git"
-PROF_DATA="$PROFILE_DIR/git.profdata"
-
-# Carga de entrenamiento: el git instrumentado tiene que hacer trabajo de
-# verdad y de un tamano realista. Con un repo de tres ficheros el perfil solo
-# recoge el arranque, y el PGO no mejora nada (medido: sin diferencia frente
-# al binario sin PGO). El trabajo caro de git esta en el indice y en el
-# diff, asi que la carga usa un repo con cientos de ficheros y many
-# modificaciones, que es lo que hace un repo de verdad.
-train_git() {
-    d=$(mktemp -d "${TMPDIR:-/tmp}/git-pgo.XXXXXX")
-    cd "$d"
-    export GIT_AUTHOR_NAME=pgo GIT_AUTHOR_EMAIL=pgo@localhost
-    export GIT_COMMITTER_NAME=pgo GIT_COMMITTER_EMAIL=pgo@localhost
-    "$1" init -q .
-    i=0
-    while [ "$i" -lt 200 ]; do
-        printf 'contenido %s\n' "$i" > "f$i.txt"
-        i=$((i + 1))
-    done
-    "$1" add -A
-    "$1" commit -q -m primero
-    i=0
-    while [ "$i" -lt 200 ]; do
-        printf 'cambio %s\n' "$i" >> "f$i.txt"
-        i=$((i + 1))
-    done
-    "$1" add -A
-    "$1" commit -q -m segundo
-    "$1" status --short
-    "$1" status --porcelain
-    "$1" diff --stat
-    "$1" diff
-    "$1" log --oneline
-    "$1" log --stat
-    "$1" log -p
-    "$1" branch rama
-    "$1" checkout -q rama
-    printf 'otra\n' > f1.txt
-    "$1" add -A
-    "$1" commit -q -m tercero
-    "$1" checkout -q master 2>/dev/null || "$1" checkout -q main
-    "$1" merge -q rama
-    "$1" show --stat HEAD
-    "$1" ls-files
-    "$1" cat-file -p HEAD
-    "$1" rev-parse HEAD
-    cd - >/dev/null
-    rm -rf "$d"
-}
-
-if [ "${BASE_PGO:-0}" = 1 ]; then
-    mkdir -p "$PROFILE_DIR"
-
-    # El PGO necesita el runtime de perfil del toolchain, si no la pasada
-    # instrumentada no enlaza.
-    if ! ls /usr/lib/clang/*/lib/*/libclang_rt.profile.a >/dev/null 2>&1; then
-        echo "AVISO: el toolchain no trae libclang_rt.profile.a; el PGO" >&2
-        echo "       necesita un llvm con COMPILER_RT_BUILD_PROFILE=ON" >&2
-    fi
-
-    echo "-> PGO: primera pasada instrumentada"
-    configure_git
-    build_git "$BASE_CFLAGS -flto=thin -fprofile-generate=$PROFILE_DIR" \
-              "$BASE_LDFLAGS -flto=thin -fprofile-generate=$PROFILE_DIR"
-
-    echo "-> PGO: entrenamiento"
-    train_git "$PWD/git"
-
-    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
-        llvm-profdata merge -output="$PROF_DATA" "$PROFILE_DIR"/*.profraw
-    fi
-
-    if [ -f "$PROF_DATA" ]; then
-        echo "-> PGO: segunda pasada con el perfil"
-        make clean
-        # El clean de git borra el directorio oss-fuzz/, y la regla de enlace
-        # de los fuzzers no lo recrea: el enlace falla con "failed to open
-        # oss-fuzz/fuzz-...: No such file or directory" y tumba la segunda
-        # pasada.
-        mkdir -p oss-fuzz
-        configure_git
-        build_git "$BASE_CFLAGS -flto=thin -fprofile-instr-use=$PROF_DATA" \
-                  "$BASE_LDFLAGS -flto=thin -fprofile-instr-use=$PROF_DATA"
-    else
-        echo "AVISO: no se ha generado ningun perfil; se instala el build" \
-            "instrumentado sin PGO" >&2
-    fi
-else
-    configure_git
-    build_git "$BASE_CFLAGS -flto=thin" "$BASE_LDFLAGS -flto=thin"
-fi
-
+# Git 2.55 moved varint helpers to the optional Rust implementation. Keep
+# this package's existing no-Rust build and use the bundled C fallback.
+make NO_RUST=YesPlease LIBS="$(curl-config --static-libs) libgit.a -lz"
 make NO_RUST=YesPlease DESTDIR="$1" install
 
 cp -Rf man "$1/usr/share/man"
