@@ -1,6 +1,143 @@
 #!/bin/sh -e
 
-CFLAGS="$CFLAGS" sh Build.sh
+# ThinLTO: mksh son unas 25 unidades de traduccion enlazadas en un binario,
+# de modo que el codigo cruza TUs. Con lld el enlace LTO se resuelve sin el
+# plugin gold, pero el archivador tiene que ser el de LLVM: el ar de GNU no
+# entiende el formato bitcode.
+export AR=llvm-ar
+export RANLIB=llvm-ranlib
+export NM=llvm-nm
+
+export CFLAGS="$CFLAGS -flto=thin"
+export LDFLAGS="$LDFLAGS -flto=thin"
+
+# PGO con la interfaz de clang: -fprofile-generate escribe .profraw,
+# llvm-profdata los fusiona en un .profdata y -fprofile-instr-use lo aplica.
+# (La interfaz de gcc, con -fprofile-use y .gcda, no sirve aqui: el
+# compilador del sistema es clang.)
+# El perfil vive FUERA del arbol de build: KISS borra el arbol al empezar y
+# al terminar, y un reinicio lo perdia (leccion de la fase 2 de llvm). El
+# directorio es por paquete para que los perfiles no se mezclen.
+BASE_PGO_ROOT="${BASE_PGO_DIR:-$HOME/.cache/pgo-base}"
+PROFILE_DIR="$BASE_PGO_ROOT/mksh"
+PROF_DATA="$PROFILE_DIR/mksh.profdata"
+
+# Carga de entrenamiento: el mksh instrumentado tiene que interpretar shell
+# de verdad (bucles, funciones, pipelines, expansiones, case, aritmetica,
+# sustituciones y redirecciones), que es donde estan sus rutas calientes.
+train_mksh() {
+    d=$(mktemp -d "${TMPDIR:-/tmp}/mksh-pgo.XXXXXX")
+    cat > "$d/train.sh" <<'EOF'
+#!/bin/sh
+# Construcciones Shell que aparece en cualquier script real.
+total=0
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    total=$((total + i))
+done
+while [ "$total" -gt 0 ]; do
+    total=$((total - 1))
+done
+until [ "$total" -eq 0 ]; do
+    total=$((total + 0))
+done
+
+funcion() {
+    local x="$1"
+    case "$x" in
+        a*|b*) printf '%s\n' "caso1" ;;
+        c*)    printf '%s\n' "caso2" ;;
+        *)     printf '%s\n' "caso3" ;;
+    esac
+}
+funcion abc
+funcion cde
+funcion zzz
+
+lista="uno dos tres cuatro"
+for palabra in $lista; do
+    printf '%s\n' "$palabra"
+done
+
+printf '%s\n' "$lista" | tr ' ' '\n' | sort | uniq -c | head -3
+
+texto="resultado: $(printf '%s' "$lista" | wc -w) palabras"
+printf '%s\n' "$texto"
+printf '%s\n' "${lista%% *}" "${lista#* }" "${lista% *}" "${lista##* }"
+
+i=0
+while [ "$i" -lt 5 ]; do
+    case "$i" in
+        2) i=$((i + 1)); continue ;;
+        4) break ;;
+    esac
+    printf 'vuelta %s\n' "$i"
+    i=$((i + 1))
+done
+
+set -- uno dos tres
+printf '%s\n' "$#" "$1" "$2" "$3"
+shift
+printf '%s\n' "$1"
+
+salida=$(printf 'a\nb\nc\n' | grep -v b)
+printf '%s\n' "$salida"
+
+if [ -n "$salida" ]; then
+    printf '%s\n' "no vacio"
+else
+    printf '%s\n' "vacio"
+fi
+
+{ printf 'x\n'; printf 'y\n'; } | cat
+EOF
+    "$1" "$d/train.sh"
+    rm -rf "$d"
+}
+
+if [ "${BASE_PGO:-0}" = 1 ]; then
+    mkdir -p "$PROFILE_DIR"
+
+    # El PGO necesita el runtime de perfil del toolchain, si no la pasada
+    # instrumentada no enlaza.
+    if ! ls /usr/lib/clang/*/lib/*/libclang_rt.profile.a >/dev/null 2>&1; then
+        echo "AVISO: el toolchain no trae libclang_rt.profile.a; el PGO" >&2
+        echo "       necesita un llvm con COMPILER_RT_BUILD_PROFILE=ON" >&2
+    fi
+
+    BASE_CFLAGS="$CFLAGS"
+    BASE_LDFLAGS="$LDFLAGS"
+
+    echo "-> PGO: primera pasada instrumentada"
+    CFLAGS="$BASE_CFLAGS -fprofile-generate=$PROFILE_DIR"
+    LDFLAGS="$BASE_LDFLAGS -fprofile-generate=$PROFILE_DIR"
+    export CFLAGS LDFLAGS
+
+    sh Build.sh
+
+    echo "-> PGO: entrenamiento"
+    train_mksh "$PWD/mksh"
+
+    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
+        llvm-profdata merge -output="$PROF_DATA" "$PROFILE_DIR"/*.profraw
+    fi
+
+    if [ -f "$PROF_DATA" ]; then
+        echo "-> PGO: segunda pasada con el perfil"
+        # Build.sh no tiene target clean: se quitan los objetos y el binario
+        # a mano, porque si no la segunda pasada no recompila con el perfil.
+        rm -f ./*.o mksh
+        CFLAGS="$BASE_CFLAGS -fprofile-instr-use=$PROF_DATA"
+        LDFLAGS="$BASE_LDFLAGS -fprofile-instr-use=$PROF_DATA"
+        export CFLAGS LDFLAGS
+
+        sh Build.sh
+    else
+        echo "AVISO: no se ha generado ningun perfil; se instala el build" \
+            "instrumentado sin PGO" >&2
+    fi
+else
+    sh Build.sh
+fi
 
 install -Dm755 "mksh" "$1/usr/bin/mksh"
 install -Dm755 "mksh" "$1/usr/bin/sh"

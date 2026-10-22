@@ -9,10 +9,103 @@ sed -e "s#= g[c+][c+]#= $CC#g" \
     -e "s#\(\$(CROSS_COMPILE)\)gcc#\1$CC#g" Makefile > _
 mv -f _ Makefile
 
+# ThinLTO: busybox es un unico binario enorme hecho de cientos de .c, el
+# caso ideal para ThinLTO: el optimizador ve el conjunto de los applets y
+# puede compartir el codigo entre ellos. Con lld el enlace LTO se resuelve
+# sin el plugin gold.
+export CFLAGS="$CFLAGS -flto=thin"
+export LDFLAGS="$LDFLAGS -flto=thin"
+
+# PGO con la interfaz de clang: -fprofile-generate escribe .profraw,
+# llvm-profdata los fusiona en un .profdata y -fprofile-instr-use lo aplica.
+# (La interfaz de gcc, con -fprofile-use y .gcda, no sirve aqui: el
+# compilador del sistema es clang.)
+# El perfil vive FUERA del arbol de build: KISS borra el arbol al empezar y
+# al terminar, y un reinicio lo perdia (leccion de la fase 2 de llvm).
+BASE_PGO_ROOT="${BASE_PGO_DIR:-$HOME/.cache/pgo-base}"
+PROFILE_DIR="$BASE_PGO_ROOT/busybox"
+PROF_DATA="$PROFILE_DIR/busybox.profdata"
+
+# Carga de entrenamiento: el busybox instrumentado tiene que ejecutar los
+# applets que se usan a diario, que es donde estan sus rutas calientes.
+train_busybox() {
+    d=$(mktemp -d "${TMPDIR:-/tmp}/busybox-pgo.XXXXXX")
+    cd "$d"
+    printf 'uno\ndos\ntres\ncuatro\n' > datos.txt
+    mkdir -p sub
+    printf 'x\n' > sub/f1
+    for applet in ls cat grep sed tr wc head tail sort uniq cut find du df \
+        date uname env printf echo expr test seq basename dirname md5sum \
+        sleep true false yes; do
+        "$1" "$applet" --help >/dev/null 2>&1 || true
+    done
+    "$1" ls -la "$d" >/dev/null 2>&1 || true
+    "$1" cat datos.txt >/dev/null 2>&1 || true
+    "$1" grep -n dos datos.txt >/dev/null 2>&1 || true
+    "$1" sed 's/o/0/g' datos.txt >/dev/null 2>&1 || true
+    "$1" tr 'a-z' 'A-Z' < datos.txt >/dev/null 2>&1 || true
+    "$1" wc -l datos.txt >/dev/null 2>&1 || true
+    "$1" sort datos.txt >/dev/null 2>&1 || true
+    "$1" uniq datos.txt >/dev/null 2>&1 || true
+    "$1" cut -c1-2 datos.txt >/dev/null 2>&1 || true
+    "$1" find . -type f >/dev/null 2>&1 || true
+    "$1" du -s . >/dev/null 2>&1 || true
+    "$1" df -h . >/dev/null 2>&1 || true
+    "$1" seq 1 20 >/dev/null 2>&1 || true
+    "$1" md5sum datos.txt >/dev/null 2>&1 || true
+    "$1" basename /a/b/c >/dev/null 2>&1 || true
+    "$1" dirname /a/b/c >/dev/null 2>&1 || true
+    cd - >/dev/null
+    rm -rf "$d"
+}
+
 # Build and install regular busybox.
 # This excludes utilities which require 'suid' to function.
 yes '' | make HOSTCC="$CC" oldconfig
-make HOSTCC="$CC"
+
+if [ "${BASE_PGO:-0}" = 1 ]; then
+    mkdir -p "$PROFILE_DIR"
+
+    # El PGO necesita el runtime de perfil del toolchain, si no la pasada
+    # instrumentada no enlaza.
+    if ! ls /usr/lib/clang/*/lib/*/libclang_rt.profile.a >/dev/null 2>&1; then
+        echo "AVISO: el toolchain no trae libclang_rt.profile.a; el PGO" >&2
+        echo "       necesita un llvm con COMPILER_RT_BUILD_PROFILE=ON" >&2
+    fi
+
+    BASE_CFLAGS="$CFLAGS"
+    BASE_LDFLAGS="$LDFLAGS"
+
+    echo "-> PGO: primera pasada instrumentada"
+    CFLAGS="$BASE_CFLAGS -fprofile-generate=$PROFILE_DIR"
+    LDFLAGS="$BASE_LDFLAGS -fprofile-generate=$PROFILE_DIR"
+    export CFLAGS LDFLAGS
+
+    make HOSTCC="$CC"
+
+    echo "-> PGO: entrenamiento"
+    train_busybox "$PWD/busybox"
+
+    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
+        llvm-profdata merge -output="$PROF_DATA" "$PROFILE_DIR"/*.profraw
+    fi
+
+    if [ -f "$PROF_DATA" ]; then
+        echo "-> PGO: segunda pasada con el perfil"
+        make clean
+        CFLAGS="$BASE_CFLAGS -fprofile-instr-use=$PROF_DATA"
+        LDFLAGS="$BASE_LDFLAGS -fprofile-instr-use=$PROF_DATA"
+        export CFLAGS LDFLAGS
+
+        make HOSTCC="$CC"
+    else
+        echo "AVISO: no se ha generado ningun perfil; se instala el build" \
+            "instrumentado sin PGO" >&2
+    fi
+else
+    make HOSTCC="$CC"
+fi
+
 make CONFIG_PREFIX="$1/usr" install
 
 # Rename the binary temporarily.
@@ -20,6 +113,8 @@ mv "$1/usr/bin/busybox" "$1/usr/bin/busybox-nosuid"
 
 # Build and install suid busybox.
 # This _only_ includes utlities which require 'suid' to function.
+# Va sin PGO: son los applets que necesitan suid (su, passwd, mount...), que
+# se usan poco y no merecerian una segunda pasada instrumentada.
 cp -f .config-suid .config
 yes '' | make HOSTCC="$CC" oldconfig
 make HOSTCC="$CC"

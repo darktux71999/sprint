@@ -55,11 +55,35 @@ entrada. Un cambio de comportamiento no pedido es un fallo.
   del grafo (`update_file` con 160 contadores, `find_directory` con 1.764).
 - T2 (S2, S3, S4) `git`: ThinLTO + PGO con carga de operaciones reales de git.
   Ruta: inline. Riesgo: ninguno.
+  **Hecho**: recipe con el `configure` **sin** LTO/PGO (con LTO en el
+  configure, cada prueba compila y enlaza con ThinLTO: 9 minutos frente a 1)
+  y los flags en la linea de `make`. Version 2.55.0 2. El perfil se genera
+  con una carga de 200 ficheros y 200 modificaciones (con un repo de tres
+  ficheros el perfil solo recogia el arranque y el PGO no mejoraba nada:
+  16 ms contra 16 ms). El `make clean` de git borra el directorio
+  `oss-fuzz/` y la regla de enlace de los fuzzers no lo recrea, asi que la
+  segunda pasada se caia con "failed to open oss-fuzz/fuzz-...: No such file
+  or directory": se arregla con `mkdir -p oss-fuzz` antes de reconfigurar.
 - T3 (S2, S3, S5) `mksh`: PGO con carga de construcciones de shell. Ruta:
   inline. Riesgo: item 3 (el shell de login) -> copia de respaldo.
+  **Hecho**: recipe con ThinLTO + PGO, perfil en `$HOME/.cache/pgo-base/mksh/`
+  (1.560 funciones). Build.sh no tiene target `clean` (se quitan los objetos a
+  mano, o si no la segunda pasada no recompila con el perfil). Compilado con
+  `build_install=0` y probado contra el original antes de instalar. Version
+  59c 2. Medido: el guion de shell baja de 209 ms a 185 ms (~11%).
 - T4 (S2, S3, S5, S8) `busybox`: ThinLTO + PGO con carga de applets. Ruta:
   inline. Riesgo: item 3 (`/sbin/init` es busybox) -> copia de respaldo y
   prueba exhaustiva del staged.
+  **Hecho**: recipe con ThinLTO + PGO para la variante normal; la variante
+  `suid` va sin PGO (son los applets que necesitan suid, que se usan poco).
+  Perfil de 6.687 funciones. Compilado con `build_install=0`, probado
+  contra el original (297 applets, salida identica salvo la fecha del
+  banner) y instalado despues. Version 1.38.0 3. Medido: `sed` sobre 20.000
+  lineas baja de 1504 ms a 1270 ms (~15%) y `grep` de 1019 ms a 952 ms
+  (~6%). Respaldo en `/var/cache/sprint-backup/` con `init` de rescate.
+  Nota: el paquete nuevo trae un `mdev.conf` sin la regla local de USB
+  Android/Unisoc (que si usa `/opt/mdev/usb-android.sh`): se restauro el
+  fichero con la regla.
 - T5 (S8) Test de diferencia para los cuatro binarios.
 - T6 (S1, S2, S6) Actualizar `docs/build-optimization.md` con la tabla de
   candidatos y el estado.

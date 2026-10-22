@@ -1,0 +1,204 @@
+#!/bin/sh -e
+# Test de diferencia de los binarios base optimizados (ThinLTO + PGO).
+#
+# La optimizacion no debe cambiar el comportamiento: para la misma entrada,
+# la salida (stdout, stderr) y el codigo de salida tienen que ser IDENTICOS
+# a los del binario original. Este script ejecuta el mismo guion contra el
+# binario de referencia y contra el nuevo y compara.
+#
+# Uso: test/base-bins/run <dir-referencia> <dir-nuevo>
+#   dir-referencia: directorio con los binarios originales (make.orig,
+#                   git.orig, mksh.orig, busybox.orig, busybox-suid.orig)
+#   dir-nuevo:      directorio con los binarios nuevos del mismo nombre
+#
+# Los binarios de referencia no se versionan (son 12 MB); en esta maquina
+# viven en /var/cache/sprint-backup.
+
+REF_DIR="${1:-/var/cache/sprint-backup}"
+NEW_DIR="${2:-/usr/bin}"
+
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/base-bins.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT INT TERM
+
+fallos=0
+ok() { printf 'ok   %s\n' "$1"; }
+ko() { printf 'FALLO %s\n' "$1"; fallos=$((fallos + 1)); }
+
+# compare <etiqueta> <binario-ref> <binario-nuevo> <guion>
+# El guion recibe el binario como $1 y debe imprimir a stdout lo que se
+# quiere comparar.
+compare() {
+    etiqueta="$1"
+    ref="$2"
+    nuevo="$3"
+    guion="$4"
+
+    if [ ! -x "$ref" ]; then
+        printf 'skip %s (sin referencia %s)\n' "$etiqueta" "$ref"
+        return 0
+    fi
+    if [ ! -x "$nuevo" ]; then
+        printf 'skip %s (no hay binario nuevo en %s)\n' "$etiqueta" "$nuevo"
+        return 0
+    fi
+
+    # El nombre del binario aparece en algunos mensajes (make lo imprime en
+    # sus errores), asi que se normaliza para no comparar el nombre del
+    # fichero con el nombre del binario instalado. El codigo de salida se
+    # captura aparte: con una tuberia, $? seria el del sed.
+    a=$(cd "$tmp" && BIN="$ref" sh "$guion" 2>&1); ra=$?
+    b=$(cd "$tmp" && BIN="$nuevo" sh "$guion" 2>&1); rb=$?
+    # Make imprime su nombre en los mensajes de error ("make: *** No rule
+    # to make target"), asi que se normaliza SOLO ese prefijo: reemplazar el
+    # nombre entero en cualquier posicion parte otras salidas (por ejemplo
+    # "diff --git" se convertiria en "diff --BIN"). El banner de busybox
+    # lleva la fecha de compilacion, que cambia en cualquier reconstruccion
+    # y no es un cambio de comportamiento.
+    a=$(printf '%s' "$a" | sed -e "s|^$(basename "$ref"):|BIN:|" \
+        -e "s|BusyBox v[0-9.]* ([0-9-]* [0-9:]* [A-Z]*)|BusyBox VERSION|g")
+    b=$(printf '%s' "$b" | sed -e "s|^$(basename "$nuevo"):|BIN:|" \
+        -e "s|BusyBox v[0-9.]* ([0-9-]* [0-9:]* [A-Z]*)|BusyBox VERSION|g")
+
+    if [ "$a" = "$b" ] && [ "$ra" = "$rb" ]; then
+        ok "$etiqueta"
+    else
+        ko "$etiqueta (rc: $ra vs $rb)"
+        printf '%s\n' "$a" > "$tmp/ref.txt"
+        printf '%s\n' "$b" > "$tmp/new.txt"
+        diff -u "$tmp/ref.txt" "$tmp/new.txt" | head -20 || true
+    fi
+}
+
+# ---------------------------------------------------------------- make
+cat > "$tmp/make.sh" <<'EOF'
+BIN="$BIN"
+"$BIN" --version | head -2
+printf 'int main(void){return 0;}\n' > a.c
+cat > Makefile <<'MK'
+CC ?= cc
+CFLAGS ?= -O1
+SRC := $(wildcard *.c)
+OBJ := $(SRC:.c=.o)
+all: $(OBJ) app
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+app: $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $(OBJ)
+count:
+	@echo $(words $(SRC)) fuentes
+clean:
+	rm -f $(OBJ) app
+.PHONY: all clean count
+MK
+"$BIN" -n all
+"$BIN" count
+"$BIN" nonexistent
+"$BIN" --eval='$(info eval funciona)' -f /dev/null
+"$BIN" -j2 all >/dev/null 2>&1; echo "build rc=$?"
+"$BIN" -j2 clean >/dev/null 2>&1; echo "clean rc=$?"
+EOF
+compare "make: salida identica" "$REF_DIR/make.orig" "$NEW_DIR/make" "$tmp/make.sh"
+
+# ---------------------------------------------------------------- git
+cat > "$tmp/git.sh" <<'EOF'
+BIN="$BIN"
+export GIT_AUTHOR_NAME=pgo GIT_AUTHOR_EMAIL=pgo@localhost
+export GIT_COMMITTER_NAME=pgo GIT_COMMITTER_EMAIL=pgo@localhost
+export GIT_AUTHOR_DATE="2020-01-01T00:00:00+0000"
+export GIT_COMMITTER_DATE="2020-01-01T00:00:00+0000"
+rm -rf repo
+mkdir repo
+cd repo
+"$BIN" init -q .
+i=0
+while [ "$i" -lt 3 ]; do
+    printf 'linea %s\n' "$i" > "f$i.txt"
+    i=$((i + 1))
+done
+"$BIN" add -A
+"$BIN" commit -q -m primero
+printf 'cambio\n' >> f0.txt
+"$BIN" add -A
+"$BIN" commit -q -m segundo
+"$BIN" log --oneline
+"$BIN" log --stat
+"$BIN" diff HEAD~1 HEAD
+"$BIN" status --short
+"$BIN" branch rama
+"$BIN" checkout -q rama
+printf 'otra\n' > f1.txt
+"$BIN" add -A
+"$BIN" commit -q -m tercero
+"$BIN" checkout -q master 2>/dev/null || "$BIN" checkout -q main
+"$BIN" merge -q rama
+"$BIN" show --stat HEAD
+"$BIN" ls-files
+"$BIN" cat-file -p HEAD
+"$BIN" rev-parse HEAD
+"$BIN" config --list
+EOF
+compare "git: salida identica" "$REF_DIR/git.orig" "$NEW_DIR/git" "$tmp/git.sh"
+
+# ---------------------------------------------------------------- mksh
+cat > "$tmp/mksh.sh" <<'EOF'
+BIN="$BIN"
+cat > guion.sh <<'SH'
+total=0
+for i in 1 2 3 4 5; do total=$((total + i)); done
+printf 'total %s\n' "$total"
+case "$total" in
+    15) printf 'caso ok\n' ;;
+    *)  printf 'caso mal\n' ;;
+esac
+f() { printf 'funcion %s\n' "$1"; }
+f uno
+lista="a b c"
+for p in $lista; do printf '%s\n' "$p"; done
+printf '%s\n' "$lista" | tr ' ' '\n' | sort
+x="hola mundo"
+printf '%s\n' "${x%% *}" "${x#* }" "${x% *}" "${x##* }"
+printf 'sub %s\n' "$(printf 'a\nb\n' | grep -v b)"
+i=0
+while [ "$i" -lt 3 ]; do printf 'vuelta %s\n' "$i"; i=$((i + 1)); done
+set -- uno dos
+printf '%s %s %s\n' "$#" "$1" "$2"
+SH
+"$BIN" guion.sh
+"$BIN" -c 'printf "inline %s\n" ok'
+"$BIN" -c 'exit 3'; echo "rc=$?"
+EOF
+compare "mksh: salida identica" "$REF_DIR/mksh.orig" "$NEW_DIR/mksh" "$tmp/mksh.sh"
+
+# ---------------------------------------------------------------- busybox
+cat > "$tmp/busybox.sh" <<'EOF'
+BIN="$BIN"
+printf 'uno\ndos\ntres\n' > datos.txt
+"$BIN" --list | sort | head -40
+for applet in ls cat grep sed tr wc head tail sort uniq cut find du df \
+    date uname env printf echo expr test seq basename dirname md5sum; do
+    printf '== %s\n' "$applet"
+    "$BIN" "$applet" --help 2>&1 | head -5
+done
+printf '== uso\n'
+"$BIN" cat datos.txt
+"$BIN" grep -n dos datos.txt
+"$BIN" sed 's/o/0/g' datos.txt
+"$BIN" tr 'a-z' 'A-Z' < datos.txt
+"$BIN" wc -l datos.txt
+"$BIN" sort datos.txt
+"$BIN" uniq datos.txt
+"$BIN" cut -c1-2 datos.txt
+"$BIN" basename /a/b/c
+"$BIN" dirname /a/b/c
+"$BIN" seq 1 5
+"$BIN" md5sum datos.txt
+EOF
+compare "busybox: salida identica" "$REF_DIR/busybox.orig" "$NEW_DIR/busybox" "$tmp/busybox.sh"
+
+printf '\n%s\n' "---"
+if [ "$fallos" -eq 0 ]; then
+    printf 'todos los binarios se comportan igual que los originales\n'
+else
+    printf '%s diferencias encontradas\n' "$fallos"
+fi
+exit "$fallos"

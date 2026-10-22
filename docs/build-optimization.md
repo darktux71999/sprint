@@ -231,8 +231,44 @@ entrenamiento; BOLT necesita instrumentar y recoger un perfil.
 | `mesa` | cientos | ✓ (GPU) | ✓ | LTO moderado, PGO solo con carga de GPU real |
 | `ffmpeg` | muchos | ✓✓ (transcodificar) | ✓ | **PGO** ✓✓ (el caso clásico), LTO marginal, BOLT ✓ |
 | `rust` | miles | ✓ | ✓ | se beneficia del toolchain (PGO/BOLT de LLVM) |
+| `busybox` | cientos | ✓ (applets) | ✗ | **ThinLTO** ✓✓, **PGO** ✓ (medido: sed 15% mas rapido) |
+| `git` | cientos | ✓ (indexar/diff) | ✗ | **ThinLTO** ✓, **PGO** ✓ (solo con carga realista) |
+| `mksh` | ~25 | ✓ (shell) | ✗ | **ThinLTO** ✓, **PGO** ✓✓ (medido: 11% mas rapido) |
+| `make` | ~40 | ✓ (parsear) | ✗ | **ThinLTO** ✓, **PGO** ✓ (medido: 5% mas rapido) |
 | librerías C (`zlib`, `openssl`…) | pocos | — | — | nada: `-O2`/`-O3` + `lld` ya basta |
 | CLIs (`ls`, `grep`, `sed`) | 1-10 | — | ✗ | nada: BOLT no aporta en procesos de un segundo |
+
+### Los binarios base (`BASE_PGO=1`)
+
+Los cuatro binarios base optimizados usan el mismo mecanismo que el resto:
+ThinLTO siempre activo y PGO opt-in con `BASE_PGO=1`, con el perfil en
+`$HOME/.cache/pgo-base/<paquete>/` (fuera del arbol de build, que KISS borra
+al empezar y al terminar).
+
+Cuatro cosas que hacen falta y que no son evidentes:
+
+1. **El archivador tiene que ser el de LLVM** (`AR=llvm-ar`): con LTO los
+   objetos son bitcode y el `ar` de GNU no los entiende.
+2. **El `configure` va sin los flags de LTO y de PGO**, y los flags llegan en
+   la linea de `make` (que tiene prioridad sobre lo que el `configure` horneó
+   en el Makefile). Con LTO en el `configure`, cada prueba de features
+   compila y enlaza con ThinLTO: el configure de git paso de 1 minuto a 9.
+3. **La carga de entrenamiento tiene que ser representativa del trabajo
+   real**, no una Symbolic. Con un repo de tres ficheros el perfil de git
+   solo recogia el arranque y el PGO no mejoraba nada (medido: 16 ms contra
+   16 ms). Con 200 ficheros y 200 modificaciones, el trabajo caro de git (el
+   indice y el diff) queda cubierto.
+4. **Reemplazar el `init` y el shell de login es delicado**: `/sbin/init` es
+   un enlace a `busybox` y el shell de login es `mksh`. La receta se compila
+   con `build_install=0` (KISS construye y crea el tarball sin instalar), se
+   prueba el binario del tarball contra el original (salida, stderr y codigo
+   de salida identicos) y solo entonces se instala. Ademas se guarda una
+   copia del binario original en `/var/cache/sprint-backup/` con un
+   `init` de rescate (`init=/var/cache/sprint-backup/init` en el arranque).
+
+El test de diferencia vive en `test/base-bins/run`: compara los cuatro
+binarios nuevos contra los originales y falla si cambia una sola linea de
+salida.
 
 En resumen: **ThinLTO desde donde hay cruce real, PGO donde hay carga
 automatable, BOLT donde el proceso dura**. Para firefox, el motor Rust es
