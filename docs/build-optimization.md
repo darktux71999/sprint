@@ -236,6 +236,7 @@ entrenamiento; BOLT necesita instrumentar y recoger un perfil.
 | `make` | ~40 | ✓ (parsear) | ✗ | **ThinLTO** ✓, **PGO** ✓ (medido: 5% mas rapido) |
 | `git` | cientos | ✓ (indexar/diff) | ✗ | **nada: el ThinLTO resulto ser una regresion** (medido: 7% mas lento) |
 | `vis` | ~40 | ✓ (pty) | ✗ | **nada: el ThinLTO resulto ser una regresion** (medido: 41% mas lento) |
+| `zutty` | ~30 | ✓ (pty) | ✗ | **nada: no esta limitado por la CPU** (40.000 lineas = 230 ms de CPU) |
 | librerías C (`zlib`, `openssl`…) | pocos | — | — | nada: `-O2`/`-O3` + `lld` ya basta |
 | CLIs (`ls`, `grep`, `sed`) | 1-10 | — | ✗ | nada: BOLT no aporta en procesos de un segundo |
 
