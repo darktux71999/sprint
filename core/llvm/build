@@ -64,17 +64,28 @@ echo "Jobs de compilacion: $jobs"
 base_cflags=$(printf '%s' "$CFLAGS" | sed 's/-O[0-3sgz]//g')
 base_cxxflags=$(printf '%s' "$CXXFLAGS" | sed 's/-O[0-3sgz]//g')
 
+# BOLT necesita la tabla de simbolos del binario para reordenar el codigo y
+# las relocalizaciones para instrumentar, asi que el enlazado no puede llevar
+# strip y necesita --emit-relocs. (KISS hace strip al empaquetar, asi que el
+# binario que se instala sale igualmente sin simbolos: el strip no deshace el
+# reordenado de BOLT, solo le quita la tabla.)
+if [ "${LLVM_BOLT:-0}" = 1 ]; then
+    base_ldflags="$(printf '%s' "$LDFLAGS" | sed 's/-Wl,-s//g') -Wl,--emit-relocs"
+else
+    base_ldflags=$LDFLAGS
+fi
+
 # Flags extra de la pasada en curso (PGO); vacios en el build normal.
 EXTRA_C_FLAGS=
 EXTRA_CXX_FLAGS=
 EXTRA_LD_FLAGS=
 
 configure() {
-    cmake -S ../llvm \
+    cmake -S "$SRC_ROOT/llvm" \
         -DCMAKE_C_FLAGS="$base_cflags $EXTRA_C_FLAGS" \
         -DCMAKE_CXX_FLAGS="$base_cxxflags $EXTRA_CXX_FLAGS" \
-        -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS $EXTRA_LD_FLAGS" \
-        -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS $EXTRA_LD_FLAGS" \
+        -DCMAKE_EXE_LINKER_FLAGS="$base_ldflags $EXTRA_LD_FLAGS" \
+        -DCMAKE_SHARED_LINKER_FLAGS="$base_ldflags $EXTRA_LD_FLAGS" \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_LIBDIR=lib \
         -DCMAKE_BUILD_TYPE=Release \
@@ -142,8 +153,20 @@ bolt_train() {
 # Los he puesto en OFF para asegurar el éxito del build.
 
 # 3. Build
-mkdir -p build
-cd build
+# El arbol de build vive FUERA del directorio de KISS. KISS borra el arbol de
+# la construccion al empezar (para reextraer las fuentes) y al terminar, de
+# modo que dentro se perderia todo el trabajo de compilacion: un relanzamiento
+# seria siempre una compilacion completa de horas. Fuera, un relanzamiento
+# solo recompila lo que cambia (por ejemplo, un relink al tocar los flags de
+# enlace, que es justo lo que hace falta para BOLT).
+# El nombre lleva la version para que un cambio de version no reutilice un
+# arbol configurado para otra.
+BUILD_ROOT="${LLVM_BUILD_DIR:-$HOME/.cache/llvm-build}"
+VERSION_TAG=$(printf '%s' "${2:-$(cat version)}" | tr ' ' '-')
+BUILD_DIR="$BUILD_ROOT/$VERSION_TAG"
+TRAIN_DIR="$BUILD_DIR/train"
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 
 if [ "${LLVM_PGO:-0}" = 1 ]; then
     # PGO con la interfaz de clang: -fprofile-generate escribe .profraw,
@@ -194,16 +217,15 @@ if [ "${LLVM_PGO:-0}" = 1 ]; then
         # El perfil sale de compilar codigo pesado con el clang instrumentado,
         # que es el flujo que usa upstream: se reconstruye la parte caliente del
         # compilador (IR, optimizador y backend X86) con el clang ya instrumentado.
-        cd ..
-        rm -rf build-train
-        mkdir -p build-train
-        cd build-train
+        rm -rf "$TRAIN_DIR"
+        mkdir -p "$TRAIN_DIR"
+        cd "$TRAIN_DIR"
         configure \
-            -DCMAKE_C_COMPILER="$PWD/../build/bin/clang" \
-            -DCMAKE_CXX_COMPILER="$PWD/../build/bin/clang++" \
-            -DCMAKE_AR="$PWD/../build/bin/llvm-ar" \
-            -DCMAKE_RANLIB="$PWD/../build/bin/llvm-ranlib" \
-            -DCMAKE_NM="$PWD/../build/bin/llvm-nm"
+            -DCMAKE_C_COMPILER="$BUILD_DIR/bin/clang" \
+            -DCMAKE_CXX_COMPILER="$BUILD_DIR/bin/clang++" \
+            -DCMAKE_AR="$BUILD_DIR/bin/llvm-ar" \
+            -DCMAKE_RANLIB="$BUILD_DIR/bin/llvm-ranlib" \
+            -DCMAKE_NM="$BUILD_DIR/bin/llvm-nm"
         # Los targets de cmake: el backend se declara con
         # add_llvm_component_group(X86), asi que el target es "X86" (la
         # biblioteca que produce se llama libLLVMTargetX86.a).
@@ -213,7 +235,7 @@ if [ "${LLVM_PGO:-0}" = 1 ]; then
             cmake --build . -j "$jobs" --target "$target" || \
                 echo "AVISO: no se pudo construir $target para el entrenamiento" >&2
         done
-        cd ../build
+        cd "$BUILD_DIR"
 
         if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
             "$PWD/bin/llvm-profdata" merge -output="$PROF_DATA" \
@@ -249,32 +271,42 @@ fi
 
 # 4. BOLT: reordenar el codigo de los binarios con un perfil real.
 # Modo instrumentacion: no hace falta perf (que no esta instalado).
+# El binario instrumentado escribe su perfil donde se le indique
+# (--instrumentation-file; por defecto /tmp/prof.fdata, que se pisa entre
+# ejecuciones), con el pid anadido para que cada ejecution tenga su fichero.
+# Los .fdata se fusionan con la herramienta aparte merge-fdata (NO es un
+# subcomando de llvm-bolt) y la ruta debe ser absoluta: el instrumentado la
+# resuelve contra su directorio de trabajo.
 if [ "${LLVM_BOLT:-0}" = 1 ]; then
     echo "-> BOLT: instrumentando y reordenando los binarios"
-    BOLT="$PWD/bin/llvm-bolt"
+    BOLT="$BUILD_DIR/bin/llvm-bolt"
+    MERGE_FDATA="$BUILD_DIR/bin/merge-fdata"
+    FDATA_DIR="$BUILD_DIR/bolt-fdata"
     for bin in clang clang++ lld ld.lld; do
-        [ -x "$PWD/bin/$bin" ] || continue
-        rm -rf bolt-fdata && mkdir -p bolt-fdata
-        if ! "$BOLT" "$PWD/bin/$bin" -instrument -o "$PWD/bin/$bin.instr" \
-            -j "$jobs"; then
+        [ -x "$BUILD_DIR/bin/$bin" ] || continue
+        rm -rf "$FDATA_DIR" && mkdir -p "$FDATA_DIR"
+        if ! "$BOLT" "$BUILD_DIR/bin/$bin" -instrument \
+            -o "$BUILD_DIR/bin/$bin.instr" --thread-count="$jobs" \
+            --instrumentation-file="$FDATA_DIR/$bin.fdata" \
+            --instrumentation-file-append-pid; then
             echo "AVISO: BOLT no pudo instrumentar $bin" >&2
             continue
         fi
-        (cd bolt-fdata && bolt_train "$PWD/../bin/$bin.instr")
-        if ! ls bolt-fdata/*.fdata >/dev/null 2>&1; then
+        (cd "$FDATA_DIR" && bolt_train "$BUILD_DIR/bin/$bin.instr")
+        if ! ls "$FDATA_DIR"/*.fdata >/dev/null 2>&1; then
             echo "AVISO: BOLT no recogio perfil de $bin" >&2
             continue
         fi
-        "$BOLT" merge-fdata -o "$PWD/bin/$bin.fdata" bolt-fdata/*.fdata || continue
-        if ! "$BOLT" "$PWD/bin/$bin" -data="$PWD/bin/$bin.fdata" \
-            -o "$PWD/bin/$bin.bolt" -j "$jobs"; then
+        "$MERGE_FDATA" -o "$BUILD_DIR/bin/$bin.fdata" "$FDATA_DIR"/*.fdata || continue
+        if ! "$BOLT" "$BUILD_DIR/bin/$bin" -data="$BUILD_DIR/bin/$bin.fdata" \
+            -o "$BUILD_DIR/bin/$bin.bolt" --thread-count="$jobs"; then
             echo "AVISO: BOLT no pudo reordenar $bin" >&2
             continue
         fi
-        mv -f "$PWD/bin/$bin.bolt" "$PWD/bin/$bin"
-        rm -f "$PWD/bin/$bin.instr" "$PWD/bin/$bin.fdata"
+        mv -f "$BUILD_DIR/bin/$bin.bolt" "$BUILD_DIR/bin/$bin"
+        rm -f "$BUILD_DIR/bin/$bin.instr" "$BUILD_DIR/bin/$bin.fdata"
     done
-    rm -rf bolt-fdata
+    rm -rf "$FDATA_DIR"
 fi
 
 # 5. Instalar
