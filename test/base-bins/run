@@ -55,9 +55,11 @@ compare() {
     # lleva la fecha de compilacion, que cambia en cualquier reconstruccion
     # y no es un cambio de comportamiento.
     a=$(printf '%s' "$a" | sed -e "s|^$(basename "$ref"):|BIN:|" \
-        -e "s|BusyBox v[0-9.]* ([0-9-]* [0-9:]* [A-Z]*)|BusyBox VERSION|g")
+        -e "s|BusyBox v[0-9.]* ([0-9-]* [0-9:]* [A-Z]*)|BusyBox VERSION|g" \
+        -e "s|/tmp/tmp\.[A-Za-z0-9]*|TMPDIR|g")
     b=$(printf '%s' "$b" | sed -e "s|^$(basename "$nuevo"):|BIN:|" \
-        -e "s|BusyBox v[0-9.]* ([0-9-]* [0-9:]* [A-Z]*)|BusyBox VERSION|g")
+        -e "s|BusyBox v[0-9.]* ([0-9-]* [0-9:]* [A-Z]*)|BusyBox VERSION|g" \
+        -e "s|/tmp/tmp\.[A-Za-z0-9]*|TMPDIR|g")
 
     if [ "$a" = "$b" ] && [ "$ra" = "$rb" ]; then
         ok "$etiqueta"
@@ -194,6 +196,57 @@ printf '== uso\n'
 "$BIN" md5sum datos.txt
 EOF
 compare "busybox: salida identica" "$REF_DIR/busybox.orig" "$NEW_DIR/busybox" "$tmp/busybox.sh"
+
+# ---------------------------------------------------------------- vis
+# vis es interactivo: se conduce en un pty (python3 con el modulo pty) y se
+# compara lo que dibuja en pantalla.
+cat > "$tmp/vis.sh" <<'EOF'
+BIN="$BIN"
+d=$(mktemp -d)
+i=0
+: > "$d/ejemplo.c"
+while [ "$i" -lt 40 ]; do
+    printf 'int funcion_%s(int x) { return x + %s; }\n' "$i" "$i" >> "$d/ejemplo.c"
+    i=$((i + 1))
+done
+python3 - "$BIN" "$d/ejemplo.c" <<'PY'
+import fcntl, os, pty, re, signal, struct, sys, termios, time
+vis, fichero = sys.argv[1], sys.argv[2]
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = "xterm"
+    os.execv(vis, [vis, fichero])
+try:
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+except OSError:
+    pass
+time.sleep(0.6)
+out = b""
+try:
+    while len(out) < 4096:
+        r = os.read(fd, 4096)
+        if not r:
+            break
+        out += r
+except OSError:
+    pass
+for keys in (b"gg", b"jjj", b"iX\x1b", b"0", b":wq\r"):
+    os.write(fd, keys)
+    time.sleep(0.1)
+time.sleep(0.3)
+try:
+    os.kill(pid, signal.SIGKILL)
+    os.waitpid(pid, 0)
+except (ChildProcessError, ProcessLookupError):
+    pass
+texto = out.decode("utf-8", "replace")
+texto = re.sub(r"\x1b\[[0-9;?]*[a-zA-Z]", "", texto)
+texto = re.sub(r"\x1b[()][A-B0-9]", "", texto)
+print(texto)
+PY
+rm -rf "$d"
+EOF
+compare "vis: pantalla identica" "$REF_DIR/vis.orig" "$NEW_DIR/vis" "$tmp/vis.sh"
 
 printf '\n%s\n' "---"
 if [ "$fallos" -eq 0 ]; then

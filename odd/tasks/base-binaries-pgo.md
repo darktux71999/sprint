@@ -110,8 +110,7 @@ entrada. Un cambio de comportamiento no pedido es un fallo.
 ## Log
 
 L1. Petición del usuario (2026-10-21): "podemos optimizar parte de los binarios
-base, segun sea conveniente".
-L2. Contexto heredado: `llvm 22.1.8-6` ya instalado con PGO (perfil de
+base, segun sea conveniente".L2. Contexto heredado: `llvm 22.1.8-6` ya instalado con PGO (perfil de
 76,8 MB y 701.043 funciones, con el backend X86 cubierto). `firefox` y `ffmpeg`
 tienen recetas de PGO/LTO listas pero sin construir.
 L3. Sonda de viabilidad (2026-10-21): `llvm-ar`, `llvm-ranlib`, `ld.lld`,
@@ -133,3 +132,27 @@ tocar el sistema; el respaldo con `init` de rescate esta en
 `/var/cache/sprint-backup/`. La especificacion S1 (que excluia `musl`) se
 mantiene: una libc con perfil incompleto puede salir mas lenta, y un fallo
 de musl deja el sistema sin arranque.
+L6. Ampliacion: el usuario pregunta por el resto de la pila (vis, luajit,
+zutty, picom, freetype, harfbuzz, cairo) y pide probar vis con un fichero
+muy grande. `kiss l` da 324 paquetes instalados; la pila grafica esta casi
+toda en el repo (`core/vis`, `core/luajit`, `extra/picom`, `extra/cairo`,
+`extra/fontconfig`, `extra/freetype-harfbuzz`, `xorg/zutty`,
+`xorg/xlibre-server`).
+  **vis: REVERTIDO** (la receta vuelve a la original y la version a 0.9 1; el
+  binario optimizado nunca se instalo, asi que el editor del usuario esta
+  intacto). Se construyo con ThinLTO+PGO, con la carga en un pty (python3
+  con el modulo pty), y se midio el desplazamiento de 3.000 lineas sobre un
+  fichero de 200.000 lineas: la referencia tarda 917-927 ms y las dos
+  variantes (ThinLTO+PGO y solo ThinLTO) 1.295-1.315 ms, un **41% mas
+  lento**. Se descarto que fuera el `-Wl,-O0` que vis pone en su propio
+  enlace (quitarlo no mejora). La primera carga de PGO no includia el
+  desplazamiento, que es lo que mas se hace en un editor: con el perfil mal
+  orientado el resultado era un 39% mas lento, y anadiendolo seguia igual
+  (el culpable es el LTO, pero la carga tampoco era la adecuada).
+  Aprendido: (1) la carga de un programa interactivo se conduce en un pty y
+  **siempre con timeout y kill**: si el editor se queda en un estado raro y
+  no sale, la carga se cuelga y tumba el build; (2) vis es *perezoso* con
+  ficheros enormes (mmap: 100 MB de fichero, 6 MB de RSS, primera pantalla en
+  14 ms) asi que no se pega con un fichero grande; (3) el patron que se esta
+  formando: ThinLTO gana en los paquetes PEQUEÑOS (make, mksh, busybox) y
+  pierde en los que tienen cientos de TUs (git 7%, vis 41%).

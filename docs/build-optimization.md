@@ -235,18 +235,34 @@ entrenamiento; BOLT necesita instrumentar y recoger un perfil.
 | `mksh` | ~25 | ✓ (shell) | ✗ | **ThinLTO** ✓, **PGO** ✓✓ (medido: 11% mas rapido) |
 | `make` | ~40 | ✓ (parsear) | ✗ | **ThinLTO** ✓, **PGO** ✓ (medido: 5% mas rapido) |
 | `git` | cientos | ✓ (indexar/diff) | ✗ | **nada: el ThinLTO resulto ser una regresion** (medido: 7% mas lento) |
+| `vis` | ~40 | ✓ (pty) | ✗ | **nada: el ThinLTO resulto ser una regresion** (medido: 41% mas lento) |
 | librerías C (`zlib`, `openssl`…) | pocos | — | — | nada: `-O2`/`-O3` + `lld` ya basta |
 | CLIs (`ls`, `grep`, `sed`) | 1-10 | — | ✗ | nada: BOLT no aporta en procesos de un segundo |
 
-Que `git` salga en la lista de "nada" no es un descuido: se construyo con
-ThinLTO y con ThinLTO+PGO, se midio (rondas alternadas, cuatro por variante)
-y las dos variantes salian **5-10% mas lentas** que el binario original
-(`log -p`: 148-150 ms contra 157-167 ms). Se aislo la causa construyendo una
-variante solo con ThinLTO, y la regresion viene del LTO, no del PGO. Se
-revierte la receta de git a la original. La leccion: **el criterio de este
-documento hay que aplicarlo midiendo**, no suponiendo; y hay casos en los que
-el cruce de unidades de traduccion no compensa (git tiene muchas TUs y sus
-rutas calientes estan en el indice y en el diff, no en el codigo compartido).
+Que `git` y `vis` salgan en la lista de "nada" no es un descuido: se
+construyeron con ThinLTO y con ThinLTO+PGO, se midio (rondas alternadas) y las
+dos variantes salian **mas lentas** que el binario original (`git log -p`:
+148-150 ms contra 157-167 ms; `vis` desplazando 3.000 lineas: 917-927 ms
+contra 1.295-1.315 ms). En `vis` se aisló la causa: el ThinLTO, no el PGO
+(la variante solo-ThinLTO mide igual de lenta), y no era el `-Wl,-O0` que el
+propio vis pone en su enlace. Se revierten las dos recetas a la original.
+
+La leccion: **el criterio de este documento hay que aplicarlo midiendo**, no
+suponiendo. En los tres casos que han salido bien (`make`, `mksh`,
+`busybox`) el paquete es pequeño; en los dos que han salido mal (`git`,
+`vis`) tiene cientos de unidades de traduccion, y ahi el cruce de TUs no
+compensa: sus rutas calientes estan en el indice y el diff (git) y en el
+buffer y el redibujo (vis), no en el codigo compartido. Ademas, un perfil
+que no cubre la operacion dominante guia mal al optimizador: la primera
+carga de PGO de `vis` no includia el desplazamiento y el resultado fue un 39%
+mas lento; con el desplazamiento en la carga, el resultado seguia siendo
+igual de lento (el problema era el LTO, pero la carga tampoco era la
+adecuada).
+
+Nota sobre el PGO en programas interactivos: la carga se conduce en un pty
+(`python3` con el modulo `pty`), y **siempre con un timeout y un kill** al
+final: si el editor se queda en un estado raro y no sale, la carga se
+colgaba y tumbaba el build entero.
 
 ### Los binarios base (`BASE_PGO=1`)
 
