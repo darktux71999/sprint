@@ -1,2 +1,14 @@
 #!/bin/sh
-exec earlyoom --prefer '^(cc1plus|cc1|clang|clang-[0-9]+|ld|ld\.lld|rustc|make|ninja)$' --avoid '^(init|runsvdir|Xorg|dwm|zutty|firefox|slstatus|picom|mksh|sh|cbuild)$' 2>&1
+# El swap de esta maquina es zram (RAM comprimida), no un disco real: no es
+# una red de seguridad. earlyoom exige que la memoria Y el swap esten por
+# debajo de su minimo ("both memory and swap must be below minimum for
+# earlyoom to act"), asi que con los 10 GB de zram siempre vacios la
+# condicion de swap nunca se cumplia y earlyoom se quedaba quieto. El
+# resultado era que el kernel se colgaba en la via de recuperacion de
+# memoria (fallo de asignacion de paginas al no poder crecer el zram) en vez
+# de matar al proceso culpable, y la maquina acababa en reinicio forzado.
+#
+# -s 100,100 deja la condicion de swap trivialmente cierta (el swap no
+# puede estar mas del 100% libre) y hace que earlyoom decida solo por la
+# RAM: SIGTERM con menos del 10% disponible, SIGKILL con menos del 5%.
+exec earlyoom --prefer '^(cc1plus|cc1|clang|clang-[0-9]+|ld|ld\.lld|rustc|make|ninja)$' --avoid '^(init|runsvdir|Xorg|dwm|zutty|firefox|slstatus|picom|mksh|sh|cbuild)$' -s 100,100 2>&1
