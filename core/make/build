@@ -1,11 +1,117 @@
 #!/bin/sh -e
 
-export CFLAGS="$CFLAGS -std=c17"
-export LDFLAGS="$LDFLAGS -static"
+# ThinLTO: make son varios .c enlazados en un binario, de modo que el codigo
+# cruza unidades de traduccion y el optimizador puede ver el conjunto entero.
+# Con lld el enlace LTO se resuelve sin el plugin gold, pero el archivador
+# tiene que ser el de LLVM: el ar de GNU no entiende el formato bitcode.
+export AR=llvm-ar
+export RANLIB=llvm-ranlib
+export NM=llvm-nm
 
-./configure \
-    --prefix=/usr \
-    --disable-nls
+export CFLAGS="$CFLAGS -std=c17 -flto=thin"
+export LDFLAGS="$LDFLAGS -static -flto=thin"
 
-make
+# PGO con la interfaz de clang: -fprofile-generate escribe .profraw,
+# llvm-profdata los fusiona en un .profdata y -fprofile-instr-use lo aplica.
+# (La interfaz de gcc, con -fprofile-use y .gcda, no sirve aqui: el
+# compilador del sistema es clang.)
+# El perfil vive FUERA del arbol de build: KISS borra el arbol al empezar y
+# al terminar, y un reinicio lo perdia (leccion de la fase 2 de llvm). El
+# directorio es por paquete para que los perfiles no se mezclen.
+BASE_PGO_ROOT="${BASE_PGO_DIR:-$HOME/.cache/pgo-base}"
+PROFILE_DIR="$BASE_PGO_ROOT/make"
+PROF_DATA="$PROFILE_DIR/make.profdata"
+
+configure_make() {
+    ./configure \
+        --prefix=/usr \
+        --disable-nls
+}
+
+# Carga de entrenamiento: el make instrumentado tiene que procesar un
+# makefile de verdad (analisis de reglas, grafo de dependencias, funciones,
+# condicionales y el servidor de trabajos).
+train_make() {
+    d=$(mktemp -d "${TMPDIR:-/tmp}/make-pgo.XXXXXX")
+    cd "$d"
+    cat > Makefile <<'EOF'
+CC ?= cc
+CFLAGS ?= -O1
+SRC := $(wildcard *.c)
+OBJ := $(SRC:.c=.o)
+
+all: $(OBJ) app
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+app: $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $(OBJ)
+
+count:
+	@echo $(words $(SRC)) fuentes
+
+clean:
+	rm -f $(OBJ) app
+
+.PHONY: all clean count
+EOF
+    i=0
+    while [ "$i" -lt 12 ]; do
+        printf 'int f%s(void){return %s;}\n' "$i" "$i" > "m$i.c"
+        i=$((i + 1))
+    done
+    "$1" -j4 all >/dev/null 2>&1 || true
+    "$1" -j4 count >/dev/null 2>&1 || true
+    "$1" -j4 clean >/dev/null 2>&1 || true
+    cd - >/dev/null
+    rm -rf "$d"
+}
+
+if [ "${BASE_PGO:-0}" = 1 ]; then
+    mkdir -p "$PROFILE_DIR"
+
+    # El PGO necesita el runtime de perfil del toolchain, si no la pasada
+    # instrumentada no enlaza.
+    if ! ls /usr/lib/clang/*/lib/*/libclang_rt.profile.a >/dev/null 2>&1; then
+        echo "AVISO: el toolchain no trae libclang_rt.profile.a; el PGO" >&2
+        echo "       necesita un llvm con COMPILER_RT_BUILD_PROFILE=ON" >&2
+    fi
+
+    BASE_CFLAGS="$CFLAGS"
+    BASE_LDFLAGS="$LDFLAGS"
+
+    echo "-> PGO: primera pasada instrumentada"
+    CFLAGS="$BASE_CFLAGS -fprofile-generate=$PROFILE_DIR"
+    LDFLAGS="$BASE_LDFLAGS -fprofile-generate=$PROFILE_DIR"
+    export CFLAGS LDFLAGS
+
+    configure_make
+    make
+
+    echo "-> PGO: entrenamiento"
+    train_make "$PWD/make"
+
+    if ls "$PROFILE_DIR"/*.profraw >/dev/null 2>&1; then
+        llvm-profdata merge -output="$PROF_DATA" "$PROFILE_DIR"/*.profraw
+    fi
+
+    if [ -f "$PROF_DATA" ]; then
+        echo "-> PGO: segunda pasada con el perfil"
+        make clean
+        CFLAGS="$BASE_CFLAGS -fprofile-instr-use=$PROF_DATA"
+        LDFLAGS="$BASE_LDFLAGS -fprofile-instr-use=$PROF_DATA"
+        export CFLAGS LDFLAGS
+
+        configure_make
+        make
+    else
+        echo "AVISO: no se ha generado ningun perfil; se instala el build" \
+            "instrumentado sin PGO" >&2
+    fi
+else
+    configure_make
+    make
+fi
+
 make DESTDIR="$1" install
