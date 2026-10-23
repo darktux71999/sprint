@@ -148,6 +148,38 @@ bolt_train() {
     echo "Ficheros de entrenamiento para BOLT: $n"
 }
 
+# 2.5 Entrenamiento BOLT del enlazador: lld no compila ficheros, asi que su
+# trabajo se ejercita enlazando. Cada fichero de entrenamiento se compila a un
+# objeto con el clang del arbol (aun sin reordenar) y el enlazador
+# instrumentado lo enlaza. lld elige su flavor por argv0,asi se invoca a
+# traves de un enlace llamado ld.lld para que entre por el driver ELF.
+# --unresolved-symbols=ignore-all evita que un .o con simbolos externos
+# (los del runtime de go los tienen) mate el enlace de entrenamiento.
+bolt_train_link() {
+    lder=$1
+    objs=
+    n=0
+    ln -sf "$lder" "$FDATA_DIR/ld.lld"
+    for f in $(training_files); do
+        "$BUILD_DIR/bin/clang" -c -O0 \
+            -I"$SRC_ROOT/llvm/include" -I/usr/lib/go/src/runtime \
+            -o "$FDATA_DIR/entren$n.o" "$f" 2>/dev/null || continue
+        objs="$objs $FDATA_DIR/entren$n.o"
+        "$FDATA_DIR/ld.lld" "$FDATA_DIR/entren$n.o" -o "$FDATA_DIR/entren.ej" \
+            --unresolved-symbols=ignore-all 2>/dev/null || continue
+        n=$((n + 1))
+    done
+    # Un enlace con los objetos reunidos exercita el camino pesado del
+    # enlazador: tabla grande de simbolos, layout y escritura del ELF.
+    case $objs in
+        *" "*)
+            "$FDATA_DIR/ld.lld" $objs -o "$FDATA_DIR/entren.ej" \
+                --unresolved-symbols=ignore-all 2>/dev/null || true
+            ;;
+    esac
+    echo "Enlaces de entrenamiento para BOLT: $n"
+}
+
 # NOTA SOBRE SANITIZERS: Krak3n los tiene en ON, pero en un bootstrap inicial
 # con musl puro suelen fallar por falta de rpc/xdr.h.
 # Los he puesto en OFF para asegurar el éxito del build.
@@ -282,7 +314,11 @@ if [ "${LLVM_BOLT:-0}" = 1 ]; then
     BOLT="$BUILD_DIR/bin/llvm-bolt"
     MERGE_FDATA="$BUILD_DIR/bin/merge-fdata"
     FDATA_DIR="$BUILD_DIR/bolt-fdata"
-    for bin in clang clang++ lld ld.lld; do
+    # clang++ y ld.lld son otros nombres para clang y lld (cmake --install los
+    # recrea como enlaces, que heredan el reordenado): se procesa el binario
+    # real una sola vez. Iterarlos en la lista duplicaria los re-enlazados mas
+    # pesados del build (y BOLT fusionaria perfiles sobre el mismo contenedor).
+    for bin in clang lld; do
         [ -x "$BUILD_DIR/bin/$bin" ] || continue
         rm -rf "$FDATA_DIR" && mkdir -p "$FDATA_DIR"
         if ! "$BOLT" "$BUILD_DIR/bin/$bin" -instrument \
@@ -292,7 +328,10 @@ if [ "${LLVM_BOLT:-0}" = 1 ]; then
             echo "AVISO: BOLT no pudo instrumentar $bin" >&2
             continue
         fi
-        (cd "$FDATA_DIR" && bolt_train "$BUILD_DIR/bin/$bin.instr")
+        case $bin in
+            lld) bolt_train_link "$BUILD_DIR/bin/$bin.instr" ;;
+            *)   bolt_train "$BUILD_DIR/bin/$bin.instr" ;;
+        esac
         if ! ls "$FDATA_DIR"/*.fdata >/dev/null 2>&1; then
             echo "AVISO: BOLT no recogio perfil de $bin" >&2
             continue
