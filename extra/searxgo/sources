@@ -1,0 +1,2 @@
+git+https://github.com/Openmentia/SearxGo.git
+patches/nojs-html.patch

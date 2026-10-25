@@ -1,0 +1,158 @@
+diff --git a/internal/server/nojs.go b/internal/server/nojs.go
+new file mode 100644
+index 0000000..5e940bb
+--- /dev/null
++++ b/internal/server/nojs.go
+@@ -0,0 +1,57 @@
++package server
++
++import (
++	"html/template"
++	"net/http"
++	"time"
++
++	en "searxgo/internal/engine"
++)
++
++// Plantilla sin-JS: HTML plano con formulario y enlaces normales.
++// html/template escapa todo (titulos, URLs, snippets) por defecto.
++var noJSTemplate = template.Must(template.New("nojs").Parse(`<!doctype html>
++<html lang="es">
++<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Query}} - searxgo</title></head>
++<body>
++<form method="get" action="/search">
++<input type="text" name="q" value="{{.Query}}" size="40">
++<input type="hidden" name="format" value="html">
++<input type="hidden" name="size" value="{{.Size}}">
++<button type="submit">Buscar</button>
++</form>
++<p>{{len .Results}} resultados ({{.TookMs}} ms)</p>
++<ol>
++{{range .Results}}<li><a href="{{.URL}}">{{.Title}}</a><p>{{.Snippet}} <small>[{{.Engine}}]</small></p></li>
++{{end}}</ol>
++<p>{{if .HasPrev}}<a href="/search?q={{.Query}}&format=html&page={{.PrevPage}}&size={{.Size}}">Anterior</a> {{end}}<a href="/search?q={{.Query}}&format=html&page={{.NextPage}}&size={{.Size}}">Siguiente</a></p>
++</body>
++</html>
++`))
++
++// noJSData alimenta la plantilla sin-JS.
++type noJSData struct {
++	Query    string
++	Page     int
++	Size     int
++	TookMs   int64
++	Results  []en.Result
++	HasPrev  bool
++	PrevPage int
++	NextPage int
++}
++
++// WriteSearchHTML escribe resultados como HTML plano navegable sin JavaScript.
++func (rh *ResponseHelper) WriteSearchHTML(w http.ResponseWriter, results []en.Result, params SearchParams, took time.Duration) error {
++	w.Header().Set("Content-Type", "text/html; charset=utf-8")
++	return noJSTemplate.Execute(w, noJSData{
++		Query:    params.Query,
++		Page:     params.Page,
++		Size:     params.Size,
++		TookMs:   took.Milliseconds(),
++		Results:  results,
++		HasPrev:  params.Page > 1,
++		PrevPage: params.Page - 1,
++		NextPage: params.Page + 1,
++	})
++}
+diff --git a/internal/server/nojs_test.go b/internal/server/nojs_test.go
+new file mode 100644
+index 0000000..e5f2310
+--- /dev/null
++++ b/internal/server/nojs_test.go
+@@ -0,0 +1,48 @@
++package server
++
++import (
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++)
++
++// RED: sin-JS debe devolver HTML con formulario y resultados enlazados.
++func TestSearchHTMLFormat(t *testing.T) {
++	srv := NewServer(nil)
++	srv.StaticDir = "../../static"
++
++	req := httptest.NewRequest(http.MethodGet, "/search?q=kiss&format=html&size=0", nil)
++	rec := httptest.NewRecorder()
++	srv.Handler().ServeHTTP(rec, req)
++
++	res := rec.Result()
++	ct := res.Header.Get("Content-Type")
++	if !strings.HasPrefix(ct, "text/html") {
++		t.Fatalf("Content-Type = %q, quiero text/html", ct)
++	}
++	body := rec.Body.String()
++	for _, want := range []string{`<form`, `name="q"`, `format`, `<a href=`} {
++		if !strings.Contains(body, want) {
++			t.Fatalf("HTML sin %q:\n%.500s", want, body)
++		}
++	}
++}
++
++// El JSON por defecto no debe cambiar.
++func TestSearchDefaultStillJSON(t *testing.T) {
++	srv := NewServer(nil)
++	srv.StaticDir = "../../static"
++
++	req := httptest.NewRequest(http.MethodGet, "/search?q=kiss&size=0", nil)
++	rec := httptest.NewRecorder()
++	srv.Handler().ServeHTTP(rec, req)
++
++	ct := rec.Result().Header.Get("Content-Type")
++	if ct != "application/json" {
++		t.Fatalf("Content-Type = %q, quiero application/json", ct)
++	}
++	if strings.TrimSpace(rec.Body.String()) != "null" {
++		t.Fatalf("JSON inesperado: %q", rec.Body.String())
++	}
++}
+diff --git a/internal/server/request.go b/internal/server/request.go
+index df6584c..9c3ea48 100644
+--- a/internal/server/request.go
++++ b/internal/server/request.go
+@@ -21,6 +21,7 @@ type SearchParams struct {
+ 	Size         int
+ 	WantTimings  bool
+ 	Engines      []string
++	Format       string
+ }
+ 
+ // ParseSearchParams parses search request parameters from URL query
+@@ -30,6 +31,7 @@ func (rp *RequestParser) ParseSearchParams(r *http.Request, defaultSize int) Sea
+ 		Page:        1,
+ 		Size:        defaultSize,
+ 		WantTimings: r.URL.Query().Get("timings") == "1",
++		Format:      strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format"))),
+ 	}
+ 	
+ 	// Parse page parameter
+diff --git a/internal/server/server.go b/internal/server/server.go
+index bda7b47..225ef68 100644
+--- a/internal/server/server.go
++++ b/internal/server/server.go
+@@ -144,7 +144,15 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+ 
+     // Execute search
+     results, timings, took := s.executeSearch(ctx, params)
+-    
++
++    // Variante sin-JS: HTML plano. El JSON por defecto queda intacto.
++    if params.Format == "html" {
++        if err := s.responseHelper.WriteSearchHTML(w, results, params, took); err != nil {
++            s.responseHelper.WriteError(w, "failed to render response", http.StatusInternalServerError)
++        }
++        return
++    }
++
+     // Write response
+     if err := s.responseHelper.WriteSearchResponse(w, results, timings, took, params.WantTimings); err != nil {
+         s.responseHelper.WriteError(w, "failed to encode response", http.StatusInternalServerError)

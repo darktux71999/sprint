@@ -1,0 +1,22 @@
+#!/bin/sh -e
+# SearxGo: metasearch autohospedado en un solo binario Go
+# (DuckDuckGo/Bing/Reddit por defecto, Google desactivado por CAPTCHAs).
+#
+# Parche propio: ?format=html devuelve resultados en HTML plano sin-JS
+# (formulario + enlaces normales), el JSON por defecto queda intacto.
+#
+# NOTA: no hay releases upstream, se usa snapshot git (sin checksums).
+# El build descarga los modulos Go, necesita red (5 modulos pequenos).
+export CGO_ENABLED=0
+
+patch -p1 < nojs-html.patch
+
+go test ./...
+
+go build -o searxgo .
+
+mkdir -p "$1/usr/bin" "$1/usr/share/searxgo"
+
+install -Dm755 searxgo "$1/usr/bin/searxgo"
+cp -r static "$1/usr/share/searxgo/static"
+cp config.toml "$1/usr/share/searxgo/config.toml"
