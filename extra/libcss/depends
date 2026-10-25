@@ -1,0 +1,5 @@
+libparserutils
+libwapcaplet
+netsurf-buildsystem make
+perl make
+pkgconf make
