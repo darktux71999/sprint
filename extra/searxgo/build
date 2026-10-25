@@ -10,6 +10,7 @@
 export CGO_ENABLED=0
 
 patch -p1 < nojs-html.patch
+patch -p1 < code-engines.patch
 
 go test ./...
 
