@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+# Static library only: the consumer links all three NetSurf libraries
+# statically. The compiler and warning flags are overridden because this old
+# code neither builds nor builds warning-free with clang 22 in C23 mode.
+make \
+    PREFIX=/usr \
+    DESTDIR="$1" \
+    COMPONENT_TYPE=lib-static \
+    WARNFLAGS="-Wall -Wno-error" \
+    CC="$CC -std=gnu17" \
+    install
