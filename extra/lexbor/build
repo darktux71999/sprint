@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_SHARED_LIBS=ON \
+    -DLEXBOR_BUILD_TESTS=OFF \
+    -DLEXBOR_BUILD_EXAMPLES=OFF
+
+ninja -C build
+DESTDIR="$1" ninja -C build install
+
+rm -rf "$1/usr/share/doc"

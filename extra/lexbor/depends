@@ -1,0 +1,4 @@
+cmake make
+ninja make
+pkgconf make
+perl make
