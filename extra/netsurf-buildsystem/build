@@ -1,0 +1,8 @@
+#!/bin/sh -e
+
+# The makefile fragments install with "install -C", which busybox install does
+# not implement. This copy is the one the libraries load at build time, so the
+# fix has to live here and be installed, not be patched per library.
+sed -i 's/INSTALL ?= install -C/INSTALL ?= install/' makefiles/Makefile.tools
+
+make PREFIX=/usr DESTDIR="$1" install
