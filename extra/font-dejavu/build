@@ -1,0 +1,4 @@
+#!/bin/sh -e
+
+mkdir -p "$1/usr/share/fonts/dejavu"
+cp -p ./ttf/*.ttf "$1/usr/share/fonts/dejavu/"
