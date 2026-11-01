@@ -1,0 +1,11 @@
+#!/bin/sh -e
+# c-ares: C library for asynchronous DNS requests
+
+./configure --prefix=/usr --disable-tests
+
+make
+make DESTDIR="$1" install
+
+# install adig and ahost manually (cmake toggle not available with autotools)
+install -Dm755 src/tools/.libs/adig "$1/usr/bin/adig"
+install -Dm755 src/tools/.libs/ahost "$1/usr/bin/ahost"
