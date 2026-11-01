@@ -1,0 +1,39 @@
+#!/bin/sh -e
+# shaderc — reference GLSL/HLSL to SPIR-V compiler, provides glslc.
+# yserver needs glslc at build time (yserver-render/build.rs compiles its
+# GLSL shaders to SPIR-V); sprint has no other glslc provider.
+#
+# glslang + spirv-headers + spirv-tools are the EXACT commits pinned by
+# shaderc v2026.2 DEPS, placed in third_party/ via sources (upstream knows
+# no system replacement). With SHADERC_SKIP_TESTS only those three enter
+# the build (effcee/re2/googletest/abseil/tint stay out).
+
+export DESTDIR="$1"
+
+cmake -B build -G Ninja \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DSHADERC_SKIP_TESTS=ON \
+    -DSHADERC_SKIP_EXAMPLES=ON \
+    -DSHADERC_SKIP_COPYRIGHT_CHECK=ON \
+    -DSHADERC_ENABLE_WERROR_COMPILE=OFF
+
+cmake --build build
+cmake --install build
+
+# Ship shaderc artifacts only. The in-tree glslang/spirv-tools pins are
+# build-internal: their binaries, headers, libs and cmake/pkgconfig files
+# would shadow the system's spirv-tools and pollute /usr.
+rm -f "$1"/usr/bin/glslang "$1"/usr/bin/glslangValidator "$1"/usr/bin/spirv-*
+rm -rf "$1/usr/include/glslang" "$1/usr/include/spirv-tools"
+rm -rf "$1"/usr/lib/cmake/glslang "$1"/usr/lib/cmake/SPIRV-Tools*
+rmdir "$1/usr/lib/cmake" 2>/dev/null || true
+rm -f "$1"/usr/lib/libGenericCodeGen.a \
+    "$1"/usr/lib/libMachineIndependent.a \
+    "$1"/usr/lib/libOSDependent.a \
+    "$1"/usr/lib/libSPIRV.a \
+    "$1"/usr/lib/libSPIRV-Tools*.a \
+    "$1"/usr/lib/libSPIRV-Tools-shared.so \
+    "$1"/usr/lib/libglslang*.a \
+    "$1"/usr/lib/pkgconfig/SPIRV-Tools*.pc
