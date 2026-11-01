@@ -1,0 +1,7 @@
+c-ares
+libssh2
+libuv
+libxml2
+openssl
+sqlite
+zlib
