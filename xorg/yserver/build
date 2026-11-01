@@ -1,0 +1,77 @@
+#!/bin/sh -e
+# yserver — modern X11 server in Rust (DRM/KMS + Vulkan).
+#
+# Upstream install contract is `cargo build` + `just man` + `just install`.
+# Sprint has no `just` package, so this script replicates both `just` steps
+# with POSIX sh + scdoc (no pipes: POSIX sh has no pipefail).
+#
+# Unix-socket-only build (features=[]), per upstream packaging policy: no
+# tcp-transport/xdmcp. Enabling either is a per-distro policy decision, add
+# `--features tcp-transport` (or `xdmcp`) to the cargo line below.
+#
+# Non-systemd: TMPFILESDIR stays empty (no tmpfiles.d snippet). Create
+# /tmp/.X11-unix root-owned mode 1777 at boot instead; yserver creates the
+# dir if missing but under the calling user's ownership.
+#
+# Runtime needs read/write access to /dev/dri/* and /dev/input/event*
+# (groups video,input). `starty` execs xauth plus mcookie (or /dev/urandom).
+
+export DESTDIR="$1"
+
+ver=${2:?yserver build: missing VERSION argument}
+ver=${ver%% *}
+# Tarball has no .git; without this `yserver --version` says "unknown".
+export YSERVER_GIT_COMMIT="v$ver"
+
+# musl: fully static link is not viable (several C libs), same as Alpine.
+export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=-crt-static"
+# Keep cargo contained to the build dir (cf. extra/cbindgen) + trim abs paths.
+export CARGO_HOME="$PWD"
+export RUSTFLAGS="$RUSTFLAGS --remap-path-prefix=$PWD=."
+
+# Preflight: fail before compiling, like `just install` fails before writing.
+command -v cargo >/dev/null 2>&1 || {
+    echo "yserver: cargo not found (pkg rust)" >&2; exit 1; }
+command -v scdoc >/dev/null 2>&1 || {
+    echo "yserver: scdoc not found (pkg scdoc)" >&2; exit 1; }
+command -v pkgconf >/dev/null 2>&1 || {
+    echo "yserver: pkgconf not found (pkg pkgconf)" >&2; exit 1; }
+# yserver-render/build.rs compiles GLSL to SPIR-V at build time via glslc.
+# BLOCKER: sprint has no shaderc recipe yet, so this fails until it exists.
+command -v glslc >/dev/null 2>&1 || {
+    echo "yserver: glslc not found (pkg shaderc, not yet in repo)" >&2; exit 1; }
+
+cargo build --locked --release --bin yserver
+
+# --- `just man`: render scdoc sources to roff in target/man. ---
+docdir='/usr/share/doc/yserver'
+mkdir -p target/man
+for page in yserver starty; do
+    sed "s|@DOCDIR@|$docdir|g" "docs/man/$page.1.scd" > "target/man/$page.1.in"
+    scdoc < "target/man/$page.1.in" > "target/man/$page.1"
+    rm -f "target/man/$page.1.in"
+done
+
+# --- `just install`: stage into $DESTDIR/usr, compile nothing. ---
+dest="$1/usr"
+for f in target/release/yserver starty \
+         target/man/yserver.1 target/man/starty.1 \
+         LICENSE docs/setup.md \
+         examples/lightdm-99-yserver.conf.in; do
+    [ -f "$f" ] || { echo "yserver: missing input $f" >&2; exit 1; }
+done
+
+install -d "$dest/bin"
+install -m755 target/release/yserver "$dest/bin/yserver"
+install -m755 starty "$dest/bin/starty"
+
+install -d "$dest/share/man/man1"
+install -m644 target/man/yserver.1 "$dest/share/man/man1/yserver.1"
+install -m644 target/man/starty.1 "$dest/share/man/man1/starty.1"
+
+install -d "$dest/share/doc/yserver/examples"
+install -m644 docs/setup.md "$dest/share/doc/yserver/setup.md"
+install -m644 LICENSE "$dest/share/doc/yserver/LICENSE"
+sed "s|@PREFIX@|/usr|g" examples/lightdm-99-yserver.conf.in \
+    > "$dest/share/doc/yserver/examples/lightdm-99-yserver.conf"
+chmod 644 "$dest/share/doc/yserver/examples/lightdm-99-yserver.conf"

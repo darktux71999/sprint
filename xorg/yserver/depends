@@ -1,0 +1,14 @@
+fontconfig
+freetype-harfbuzz
+libinput
+libudev-zero
+libxkbcommon
+libxshmfence
+mesa
+pkgconf make
+rust make
+scdoc make
+util-linux
+vulkan-loader
+xauth
+xkeyboard-config
