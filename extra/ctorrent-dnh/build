@@ -1,0 +1,8 @@
+#!/bin/sh -e
+# ctorrent-dnh: enhanced CTorrent, BitTorrent client for unix-like environments
+
+patch -p1 < unistd.patch
+
+./configure --prefix=/usr
+make
+make DESTDIR="$1" install
