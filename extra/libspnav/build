@@ -3,4 +3,4 @@
 ./configure --prefix=/usr
 make
 make DESTDIR="$1" install
-install -Dm644 COPYING "$1/usr/share/licenses/libspnav/COPYING"
+install -Dm644 LICENSE "$1/usr/share/licenses/libspnav/LICENSE"
