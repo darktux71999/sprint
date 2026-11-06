@@ -1,0 +1,10 @@
+boost
+freetype-harfbuzz
+libxcb
+mesa
+qt5
+qt5-svg
+cmake make
+ninja make
+pkgconf make
+qt5-tools make

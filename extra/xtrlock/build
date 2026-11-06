@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+# Sin PAM en el sistema: autenticar contra shadow (musl tiene crypt.h).
+make -f Makefile.noimake \
+    CC=cc \
+    CFLAGS="$CFLAGS -DSHADOW_PWD -Wall" \
+    LDLIBS="-lX11 -lcrypt"
+
+make -f Makefile.noimake install DESTDIR="$1" PREFIX=/usr
+make -f Makefile.noimake install.man DESTDIR="$1" PREFIX=/usr
+
+# Necesita leer /etc/shadow: setuid root (kiss instala como root,
+# igual que busybox-suid). Baja privilegios tras leer el hash.
+chmod 4755 "$1/usr/bin/xtrlock"

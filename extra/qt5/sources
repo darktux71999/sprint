@@ -1,0 +1,3 @@
+https://invent.kde.org/qt/qt/qtbase/-/archive/v5.15.8-lts-lgpl/qtbase-v5.15.8-lts-lgpl.tar.gz
+files/qt.conf
+patches/musl-socklen_t.patch

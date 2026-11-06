@@ -1,0 +1,33 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+# muparser y libdxfrw van incluidos en el tarball (libraries/),
+# se compilan estaticos (MUPARSER_STATIC). No hace falta muparser del sistema.
+
+# musl no tiene execinfo.h (backtrace es API solo-glibc).
+patch -p1 < musl-no-execinfo.patch
+
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTS=OFF
+
+cmake --build build
+cmake --install build
+
+# Fuentes LFF, biblioteca de bloques, patrones y doc (CMake no los instala)
+mkdir -p "$1/usr/share/librecad"
+cp -r librecad/support/fonts \
+      librecad/support/library \
+      librecad/support/patterns \
+      librecad/support/doc "$1/usr/share/librecad/"
+
+# Desktop, man e icono (CMake solo instala binarios y plugins)
+mkdir -p "$1/usr/share/applications"
+mkdir -p "$1/usr/share/man/man1"
+mkdir -p "$1/usr/share/pixmaps"
+
+cp desktop/librecad.desktop "$1/usr/share/applications/"
+cp desktop/librecad.1 "$1/usr/share/man/man1/"
+cp CI/librecad.svg "$1/usr/share/pixmaps/librecad.svg"

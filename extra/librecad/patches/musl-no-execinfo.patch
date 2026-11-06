@@ -1,0 +1,35 @@
+--- a/librecad/src/lib/debug/lc_crashhandler.cpp
++++ b/librecad/src/lib/debug/lc_crashhandler.cpp
+@@ -49,7 +49,13 @@
+ #  include <sys/stat.h>
+ #else
+ #  include <csignal>
+-#  include <execinfo.h>
++// musl libc has no execinfo.h (glibc-only backtrace API).
++#  if defined(__has_include)
++#    if __has_include(<execinfo.h>)
++#      include <execinfo.h>
++#      define LC_HAVE_BACKTRACE 1
++#    endif
++#  endif
+ #  include <fcntl.h>
+ #  include <sys/types.h>
+ #  include <unistd.h>
+@@ -214,6 +220,7 @@
+     }
+     safeWriteStr("\nBacktrace:\n");
+ 
++#if defined(LC_HAVE_BACKTRACE)
+     void* frames[kMaxFrames];
+     int n = backtrace(frames, kMaxFrames);
+     if (n > 0) {
+@@ -223,6 +230,9 @@
+     } else {
+         safeWriteStr("  (no frames captured)\n");
+     }
++#else
++    safeWriteStr("  (backtrace unavailable on this platform)\n");
++#endif
+     safeWriteStr("======================================================\n");
+ 
+     // SA_RESETHAND already restored SIG_DFL; re-raise so the OS can
