@@ -6,6 +6,9 @@ meson setup \
     -Dprefix=/usr \
     -Dvalgrind=disabled \
     -Dintel=enabled \
+    -Dradeon=enabled \
+    -Damdgpu=enabled \
+    -Dnouveau=enabled \
     output
 
 ninja -C output

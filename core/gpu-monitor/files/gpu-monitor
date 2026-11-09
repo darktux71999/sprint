@@ -1,8 +1,11 @@
 #!/bin/sh
-# gpu-monitor - ajusta el pstate de nouveau (GeForce GT730, Kepler GK208)
-# segun la temperatura. Se ejecuta como servicio runit, por lo que corre como root.
+# gpu-monitor - ajuste dinamico por temperatura segun GPU detectada.
+# - nouveau (GeForce GT730, Kepler GK208): pstate 0f/07 via debugfs.
+# - amdgpu (Ryzen 5 PRO 2400GE, Vega 11): power_dpm high/auto/low.
+# Se ejecuta como servicio runit, por lo que corre como root.
+# Sin GPU conocida sale sin error para no romper el boot en otra maquina.
 
-TEMP_GLOB="/sys/class/drm/card0/device/hwmon/hwmon*/temp1_input"
+TEMP_GLOB="/sys/class/drm/card*/device/hwmon/hwmon*/temp1_input"
 PSTATE_FILE="/sys/kernel/debug/dri/0/pstate"
 INTERVAL=30
 
@@ -37,6 +40,41 @@ set_pstate() {
     fi
 }
 
+# --- amdgpu (Vega 11 Raven) ---
+# power_dpm_force_performance_level admite: auto, low, high, manual.
+# Se resuelve una vez al arrancar: la primera card con ese atributo.
+DPM_FILE=""
+for d in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+    [ -w "$d" ] && { DPM_FILE="$d"; break; }
+done
+
+get_current_dpm() {
+    [ -n "$DPM_FILE" ] && cat "$DPM_FILE" 2>/dev/null
+}
+
+set_dpm() {
+    level="$1"
+    [ "$(get_current_dpm)" = "$level" ] && return
+
+    if echo "$level" > "$DPM_FILE" 2>/dev/null; then
+        log "$(date '+%Y-%m-%d %H:%M:%S') - dpm $level (temp: $temp)"
+    else
+        log "$(date '+%Y-%m-%d %H:%M:%S') - error: no se pudo escribir dpm $level"
+    fi
+}
+
+# Modo: nouveau si hay pstate escribible, amdgpu si hay power_dpm, si no salir.
+MODE="none"
+[ -w "$PSTATE_FILE" ] && MODE="nouveau"
+if [ "$MODE" = "none" ] && [ -n "$DPM_FILE" ]; then
+    MODE="amdgpu"
+fi
+if [ "$MODE" = "none" ]; then
+    log "gpu-monitor: sin GPU soportada (ni nouveau pstate ni amdgpu dpm), saliendo"
+    exit 0
+fi
+log "gpu-monitor: modo $MODE"
+
 while true; do
     temp=$(get_temp)
 
@@ -50,12 +88,23 @@ while true; do
 
     if [ "$temp" -lt "$TEMP_LOW" ]; then
         # Frio: alto rendimiento.
-        set_pstate "0f"
+        if [ "$MODE" = "nouveau" ]; then
+            set_pstate "0f"
+        else
+            set_dpm "high"
+        fi
     elif [ "$temp" -gt "$TEMP_HIGH" ]; then
         # Caliente: bajo consumo.
-        set_pstate "07"
+        if [ "$MODE" = "nouveau" ]; then
+            set_pstate "07"
+        else
+            set_dpm "low"
+        fi
+    else
+        # Entre 60 y 75 C: nouveau mantiene (histeresis), amdgpu equilibra.
+        [ "$MODE" = "amdgpu" ] && set_dpm "auto"
     fi
-    # Entre 60 y 75 C: mantener estado actual (histeresis).
+    # Entre 60 y 75 C nouveau mantiene estado actual (histeresis).
 
     sleep "$INTERVAL"
 done

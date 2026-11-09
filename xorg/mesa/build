@@ -21,13 +21,13 @@ meson setup \
     -Dplatforms=x11 \
     -Dglx=auto \
     -Degl=enabled \
-    -Dgallium-drivers=nouveau,zink \
+    -Dgallium-drivers=nouveau,radeonsi,zink \
     -Dvalgrind=false \
     -Dzstd=disabled \
     -Dgallium-va="${va_enabled:-true}" \
     -Dglvnd=false  \
-    -Dvideo-codecs=vc1dec,h264dec,h264enc,h265dec,h265enc \
-    -Dvulkan-drivers=nouveau \
+    -Dvideo-codecs=vc1dec,h264dec,h264enc,h265dec,h265enc,vp9dec \
+    -Dvulkan-drivers=amd,nouveau \
     output
 
 ninja -C output

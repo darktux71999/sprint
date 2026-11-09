@@ -1,13 +1,17 @@
 gpu-monitor
 ________________________________________________________________________________
 
-Ajusta el pstate de nouveau (GeForce GT730, Kepler GK208) segun la temperatura
-del GPU. Cuando la temperatura baja de 60 C fija el pstate "0f" (maximo
-rendimiento); por encima de 75 C fija "07" (bajo consumo). En la banda
-intermedia conserva el estado actual (histeresis).
+Ajusta el rendimiento del GPU segun la temperatura, con autodeteccion:
+- nouveau (GeForce GT730, Kepler GK208): cuando baja de 60 C fija el pstate
+  "0f" (maximo rendimiento); por encima de 75 C fija "07" (bajo consumo).
+  En la banda intermedia conserva el estado actual (histeresis).
+- amdgpu (Ryzen 5 PRO 2400GE, Vega 11): frio -> high, caliente (>75 C) -> low,
+  intermedio -> auto, via power_dpm_force_performance_level.
 
-Pensado para ejecutarse como servicio runit, donde corre como root y puede
-escribir en /sys/kernel/debug/dri/0/pstate (requiere debugfs montado).
+Pensado para ejecutarse como servicio runit, donde corre como root. En nouveau
+requiere debugfs montado para escribir /sys/kernel/debug/dri/0/pstate; en
+amdgpu escribe /sys/class/drm/card*/device/power_dpm_force_performance_level.
+Sin GPU soportada sale sin error.
 
 Local (no upstream).
 
@@ -27,5 +31,5 @@ ________________________________________________________________________________
 
     ln -s /etc/sv/gpu-monitor /var/service/gpu-monitor
 
-Los cambios de pstate se registran en syslog (/var/log/messages) mediante
+Los cambios de pstate/dpm se registran en syslog (/var/log/messages) mediante
 logger, ademas de por stdout.
