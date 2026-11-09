@@ -1,3 +1,4 @@
 git+https://github.com/Openmentia/SearxGo.git
 patches/nojs-html.patch
 patches/code-engines.patch
+patches/searxng-compat.patch

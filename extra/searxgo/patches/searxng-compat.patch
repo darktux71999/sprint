@@ -1,0 +1,156 @@
+diff --git a/internal/server/response.go b/internal/server/response.go
+index 9980cc0..0666f1e 100644
+--- a/internal/server/response.go
++++ b/internal/server/response.go
+@@ -50,6 +50,43 @@ type SearchResponse struct {
+ 	TookMs  int64              `json:"took_ms,omitempty"`
+ }
+ 
++// SearXNGResult es la fila mínima que DeepTutor lee: title, url, content, engine.
++// Se mantiene snippet duplicado para no romper clientes viejos de SearxGo.
++type SearXNGResult struct {
++	Title   string `json:"title"`
++	URL     string `json:"url"`
++	Content string `json:"content"`
++	Snippet string `json:"snippet"`
++	Engine  string `json:"engine"`
++}
++
++// SearXNGResponse envuelve resultados como SearXNG: objeto con lista, nunca null.
++type SearXNGResponse struct {
++	Query          string        `json:"query"`
++	NumberOfResults int          `json:"number_of_results"`
++	Results        []SearXNGResult `json:"results"`
++}
++
++// WriteSearXNGResponse escribe compat SearXNG para ?format=json (DeepTutor).
++// No toca el JSON por defecto ni ?format=html ni ?timings=1 del frontend.
++func (rh *ResponseHelper) WriteSearXNGResponse(w http.ResponseWriter, query string, results []en.Result) error {
++	out := make([]SearXNGResult, 0, len(results))
++	for _, r := range results {
++		out = append(out, SearXNGResult{
++			Title:   r.Title,
++			URL:     r.URL,
++			Content: r.Snippet,
++			Snippet: r.Snippet,
++			Engine:  r.Engine,
++		})
++	}
++	return rh.WriteJSON(w, SearXNGResponse{
++		Query:           query,
++		NumberOfResults: len(out),
++		Results:         out,
++	})
++}
++
+ // WriteSearchResponse writes a search response with timing information
+ func (rh *ResponseHelper) WriteSearchResponse(w http.ResponseWriter, results []en.Result, timings []aggregate.Timing, took time.Duration, wantTimings bool) error {
+ 	// Set timing headers
+diff --git a/internal/server/searxng_compat_test.go b/internal/server/searxng_compat_test.go
+new file mode 100644
+index 0000000..658ca0b
+--- /dev/null
++++ b/internal/server/searxng_compat_test.go
+@@ -0,0 +1,82 @@
++package server
++
++import (
++	"context"
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++
++	en "searxgo/internal/engine"
++)
++
++type stubSearxngEngine struct {
++	items []en.Result
++}
++
++func (s *stubSearxngEngine) Name() string { return "stub" }
++func (s *stubSearxngEngine) Search(ctx context.Context, q string, page, size int) ([]en.Result, error) {
++	return s.items, nil
++}
++
++// RED: DeepTutor searxng provider hace GET /search?q=..&format=json y exige
++// objeto {"results":[{title,url,content,engine}]}. SearxGo hoy ignora format=json
++// y devuelve array [{title,url,snippet,engine}].
++func TestSearchFormatJsonSearXNGCompat(t *testing.T) {
++	srv := NewServer([]en.SearchEngine{&stubSearxngEngine{items: []en.Result{
++		{Title: "T", URL: "https://example.com/x", Snippet: "sumario", Engine: "stub"},
++	}}})
++	srv.StaticDir = "../../static"
++
++	req := httptest.NewRequest(http.MethodGet, "/search?q=linux&format=json&size=5", nil)
++	rec := httptest.NewRecorder()
++	srv.Handler().ServeHTTP(rec, req)
++
++	if ct := rec.Result().Header.Get("Content-Type"); ct != "application/json" {
++		t.Fatalf("Content-Type = %q, quiero application/json", ct)
++	}
++	var payload map[string]any
++	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
++		t.Fatalf("no es objeto JSON (sigue siendo array?): %v body=%.200q", err, rec.Body.String())
++	}
++	raw, ok := payload["results"]
++	if !ok {
++		t.Fatalf("falta clave results para compat SearXNG, body=%.500q", rec.Body.String())
++	}
++	rows, ok := raw.([]any)
++	if !ok {
++		t.Fatalf("results no es lista, body=%.500q", rec.Body.String())
++	}
++	if len(rows) == 0 {
++		t.Fatalf("results vacía, quiero 1 fila del stub")
++	}
++	row := rows[0].(map[string]any)
++	if row["title"] != "T" || row["url"] != "https://example.com/x" {
++		t.Fatalf("title/url no mapeados: %+v", row)
++	}
++	if row["content"] != "sumario" {
++		t.Fatalf("content = %q, quiero snippet mapeado a content para DeepTutor", row["content"])
++	}
++	if row["engine"] != "stub" {
++		t.Fatalf("engine = %q, quiero stub", row["engine"])
++	}
++}
++
++// El caso vacío debe devolver [] y no null, DeepTutor exige lista.
++func TestSearchFormatJsonEmptyIsList(t *testing.T) {
++	srv := NewServer(nil)
++	srv.StaticDir = "../../static"
++
++	req := httptest.NewRequest(http.MethodGet, "/search?q=kiss&format=json&size=0", nil)
++	rec := httptest.NewRecorder()
++	srv.Handler().ServeHTTP(rec, req)
++
++	body := strings.TrimSpace(rec.Body.String())
++	if !strings.Contains(body, `"results"`) {
++		t.Fatalf("sin clave results: %.500q", body)
++	}
++	if strings.Contains(body, `"results":null`) {
++		t.Fatalf("results es null, quiero []: %.500q", body)
++	}
++}
+diff --git a/internal/server/server.go b/internal/server/server.go
+index 225ef68..dc1e43f 100644
+--- a/internal/server/server.go
++++ b/internal/server/server.go
+@@ -153,6 +153,15 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+         return
+     }
+ 
++    // Compat SearXNG para DeepTutor: ?format=json devuelve objeto con results
++    // y content=snippet. El frontend propio nunca manda format=json (usa timings=1).
++    if params.Format == "json" {
++        if err := s.responseHelper.WriteSearXNGResponse(w, params.Query, results); err != nil {
++            s.responseHelper.WriteError(w, "failed to encode response", http.StatusInternalServerError)
++        }
++        return
++    }
++
+     // Write response
+     if err := s.responseHelper.WriteSearchResponse(w, results, timings, took, params.WantTimings); err != nil {
+         s.responseHelper.WriteError(w, "failed to encode response", http.StatusInternalServerError)

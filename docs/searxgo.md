@@ -24,6 +24,7 @@ Los cuatro últimos los agrega `patches/code-engines.patch` (motores en `interna
 
 - `patches/nojs-html.patch`: `?format=html` devuelve HTML plano sin JS (formulario + enlaces); el JSON por defecto queda intacto.
 - `patches/code-engines.patch`: agrega los motores github, codeberg, sourcegraph y gitlab.
+- `patches/searxng-compat.patch`: `?format=json` devuelve objeto estilo SearXNG (`{query,number_of_results,results:[{title,url,content,snippet,engine}]}`) para DeepTutor (Search → SearXNG → Base URL). `content` = `snippet`. El frontend propio nunca manda `format=json` (usa `timings=1`), así que no cambia la UI.
 
 Convenciones kiss: los parches se listan en `sources` (ese es el orden de aplicación en `build`) y se verifican con b3sum (`-l 33`) en `checksums`.
 
@@ -34,6 +35,8 @@ El binario lee `./config.toml` y `./static/` del directorio corriente:
     cd /usr/share/searxgo && /usr/bin/searxgo
 
 Puerto 9000 (`server.port`), búsqueda en `/search?q=<query>&format=json|html&size=<n>`.
+
+DeepTutor: `Settings → Search → SearXNG → Base URL = http://127.0.0.1:9000` (bare metal). Si DeepTutor va en Docker, `http://host.docker.internal:9000`. Sin API key. Verificación: `curl "http://127.0.0.1:9000/search?q=linux&format=json&size=2"` debe traer `results[0].content` no vacío.
 
 ## Limitaciones
 
