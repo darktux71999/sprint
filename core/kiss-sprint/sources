@@ -1,2 +1,21 @@
-files/kiss-sprint kiss-sprint
+files/kiss
+files/kiss-chroot
+files/kiss-depends
+files/kiss-find
+files/kiss-fork
+files/kiss-help
+files/kiss-integrity
+files/kiss-link
+files/kiss-maintainer
+files/kiss-manifest
+files/kiss-new
+files/kiss-orphans
+files/kiss-outdated
+files/kiss-owns
+files/kiss-patch-audit
+files/kiss-patch-fail
+files/kiss-repodepends
+files/kiss-reporevdepends
+files/kiss-revdepends
+files/kiss-size
 README

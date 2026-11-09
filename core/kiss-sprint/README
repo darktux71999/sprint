@@ -1,12 +1,51 @@
 kiss-sprint
 ________________________________________________________________________________
 
-This package preserves the exact /usr/bin/kiss script installed when this
-snapshot was created, under /usr/bin/kiss-sprint. It is kept separate from the
-upstream kiss recipe and does not replace /usr/bin/kiss.
+Paquete unico con las 20 herramientas kiss como snapshot byte-a-byte del
+sistema actual. Reemplaza a estas recetas (eliminadas del repo):
 
-The snapshot is compared byte-for-byte with /usr/bin/kiss and identified by its
-Blake3 checksum in checksums. Refresh files/kiss-sprint and the checksum when
-you intentionally capture a later installed version.
+    core/kiss                  (gestor + contrib upstream)
+    extra/kiss-find            (busqueda, upstream aabacchus)
+    extra/kiss-integrity       (verificacion de integridad, local)
+    extra/kiss-patch-audit     (auditoria de parches, local)
+    extra/kiss-patch-fail      (gancho de fallo de parche, local)
 
-Run kiss-sprint version to inspect its embedded package-manager version.
+Herramientas incluidas (/usr/bin):
+
+    kiss kiss-chroot kiss-depends kiss-find kiss-fork kiss-help
+    kiss-integrity kiss-link kiss-maintainer kiss-manifest kiss-new
+    kiss-orphans kiss-outdated kiss-owns kiss-patch-audit kiss-patch-fail
+    kiss-repodepends kiss-reporevdepends kiss-revdepends kiss-size
+
+Instalacion
+________________________________________________________________________________
+
+    kiss build kiss-sprint
+    kiss install kiss-sprint
+
+El paquete instala los 20 binarios en /usr/bin con sus nombres reales
+(sustituye a /usr/bin/kiss de upstream por una copia identica) y este
+README en /usr/share/doc/kiss-sprint/README.
+
+Actualizar el snapshot
+________________________________________________________________________________
+
+Cuando cambie alguna herramienta en el sistema, refrescar files/ y los
+checksums (Blake3, 33 bytes):
+
+    cd core/kiss-sprint/files
+    for t in kiss kiss-chroot kiss-depends kiss-find kiss-fork kiss-help \
+        kiss-integrity kiss-link kiss-maintainer kiss-manifest kiss-new \
+        kiss-orphans kiss-outdated kiss-owns kiss-repodepends \
+        kiss-reporevdepends kiss-revdepends kiss-size; do
+        cp -f "/usr/bin/$t" "$t"
+    done
+    kiss checksum kiss-sprint
+
+NOTA: kiss-patch-audit y kiss-patch-fail no estan instalados en el sistema;
+sus copias se mantienen desde el repo. Si se instalan y divergen, copiar
+desde /usr/bin igual que el resto.
+
+Los docs wiki de upstream (/usr/share/doc/kiss) ya no los provee ninguna
+receta; si se necesitan, moverlos aqui como snapshot o reincorporar la
+fuente website.

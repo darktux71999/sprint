@@ -1,4 +1,27 @@
 #!/bin/sh -e
 
-install -Dm755 kiss-sprint "$1/usr/bin/kiss-sprint"
+# Paquete unico de herramientas kiss: snapshot byte-a-byte del sistema.
+# Cubre el gestor, su contrib, utilidades locales y ganchos de parche.
+
+install -Dm755 kiss               "$1/usr/bin/kiss"
+install -Dm755 kiss-chroot        "$1/usr/bin/kiss-chroot"
+install -Dm755 kiss-depends       "$1/usr/bin/kiss-depends"
+install -Dm755 kiss-find          "$1/usr/bin/kiss-find"
+install -Dm755 kiss-fork          "$1/usr/bin/kiss-fork"
+install -Dm755 kiss-help          "$1/usr/bin/kiss-help"
+install -Dm755 kiss-integrity     "$1/usr/bin/kiss-integrity"
+install -Dm755 kiss-link          "$1/usr/bin/kiss-link"
+install -Dm755 kiss-maintainer    "$1/usr/bin/kiss-maintainer"
+install -Dm755 kiss-manifest      "$1/usr/bin/kiss-manifest"
+install -Dm755 kiss-new           "$1/usr/bin/kiss-new"
+install -Dm755 kiss-orphans       "$1/usr/bin/kiss-orphans"
+install -Dm755 kiss-outdated      "$1/usr/bin/kiss-outdated"
+install -Dm755 kiss-owns          "$1/usr/bin/kiss-owns"
+install -Dm755 kiss-patch-audit   "$1/usr/bin/kiss-patch-audit"
+install -Dm755 kiss-patch-fail    "$1/usr/bin/kiss-patch-fail"
+install -Dm755 kiss-repodepends   "$1/usr/bin/kiss-repodepends"
+install -Dm755 kiss-reporevdepends "$1/usr/bin/kiss-reporevdepends"
+install -Dm755 kiss-revdepends    "$1/usr/bin/kiss-revdepends"
+install -Dm755 kiss-size          "$1/usr/bin/kiss-size"
+
 install -Dm644 README "$1/usr/share/doc/kiss-sprint/README"

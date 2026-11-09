@@ -1,3 +1,0 @@
-#!/bin/sh -e
-
-install -Dm755 kiss-patch-fail "$1/usr/bin/kiss-patch-fail"
