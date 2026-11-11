@@ -28,3 +28,4 @@ vulkan-loader
 xkbcomp
 xorgproto
 zlib
+glslang make
