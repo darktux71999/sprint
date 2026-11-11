@@ -1,3 +1,5 @@
 libpng
 meson   make
 pkgconf make
+glib
+cairo
