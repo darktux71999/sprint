@@ -4,12 +4,20 @@ export DESTDIR="$1"
 
 : > fuzzing/meson.build
 
+# gobject-introspection depends on glib, so introspection is enabled only
+# when g-ir-scanner is already installed (bootstrap of the cycle).
+if command -v g-ir-scanner >/dev/null 2>&1; then
+    introspection=-Dintrospection=enabled
+else
+    introspection=-Dintrospection=disabled
+fi
+
 meson setup \
     -Dprefix=/usr \
     -Dlibexecdir=/usr/lib \
     -Dlibmount=disabled \
     -Dinstalled_tests=false \
-    -Dintrospection=enabled \
+    "$introspection" \
     -Ddefault_library=both \
     -Dman=false \
     -Dtests=false \
