@@ -53,8 +53,8 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-command -v awk >/dev/null 2>&1 || fail 'awk is required'
-command -v grep >/dev/null 2>&1 || fail 'grep is required'
+command -v sed >/dev/null 2>&1 || fail 'sed is required'
+command -v tr >/dev/null 2>&1 || fail 'tr is required'
 if [ "$elf_check" = yes ]; then
     command -v readelf >/dev/null 2>&1 || fail 'readelf is required for ELF checks'
     command -v ldd >/dev/null 2>&1 || fail 'ldd is required for ELF checks'
@@ -84,11 +84,13 @@ check_reverse_dependencies() {
             [ -f "$depfile" ] || continue
             dependent=${depfile%/depends}
             dependent=${dependent##*/}
-            [ "$dependent" = "$1" ] && continue
+            [ "$dependent" = "$current" ] && continue
             case $seen in *" $dependent "*) continue ;; esac
 
             depends_on_current=no
             while read -r dependency build_only || [ -n "$dependency" ]; do
+                [ -n "$dependency" ] || continue
+                case $dependency in \#*) continue ;; esac
                 [ "$dependency" = "$current" ] && [ -z "$build_only" ] && {
                     depends_on_current=yes
                     break
@@ -123,6 +125,7 @@ find_recipe_version() {
 
 package_has_shared_library() {
     is_shared_library=no
+    [ -r "$db/$1/manifest" ] || return 1
     while read -r manifest_path || [ -n "$manifest_path" ]; do
         case $manifest_path in
             */lib/*|*/lib??/*|*/lib???/*|*/lib????/*)
@@ -201,10 +204,12 @@ for package_dir in "$db"/*; do
         esac
         elf_count=$((elf_count + 1))
         ldd_output=$(ldd "$target" 2>&1)
-        unresolved=$(printf '%s\n' "$ldd_output" | grep -E 'not found|Error loading shared library|Error relocating|symbol not found|No such file or directory' | sed -n '1p' || :)
-        if [ -n "$unresolved" ]; then
-            error "$package ELF dependency issue in $manifest_path: $unresolved"
-        fi
+        case $ldd_output in
+            *'not found'*|*'Error loading shared library'*|*'Error relocating'*|*'symbol not found'*|*'No such file'*)
+                unresolved=$(printf '%s\n' "$ldd_output" | sed -n '1p')
+                error "$package ELF dependency issue in $manifest_path: $unresolved"
+                ;;
+        esac
     done < "$manifest"
 
     if [ -r "$depends" ]; then
