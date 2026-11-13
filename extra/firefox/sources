@@ -1,4 +1,4 @@
-https://ftp.mozilla.org/pub/firefox/releases/158.0/source/firefox-158.0.source.tar.xz
+https://ftp.mozilla.org/pub/firefox/releases/159.0.1/source/firefox-159.0.1.source.tar.xz
 patches/atoi.patch
 patches/depflags.patch
 patches/fix-fortify-system-wrappers.patch
@@ -18,4 +18,3 @@ patches/fix-webrtc-pid_t.patch
 patches/wasip1.patch
 patches/x11lol.patch
 patches/x86_64-Fix-stack-alignment-in-breakpad_getcontext.S.patch
-patches/audio_thread_priority-musl-pthread-id.patch
