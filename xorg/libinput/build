@@ -25,3 +25,7 @@ meson setup \
 
 ninja -C output
 ninja -C output install
+
+# Input/DRM permissions, so no manual chown is needed before startx.
+install -Dm644 60-input-permissions.rules \
+    "$1/usr/lib/udev/rules.d/60-input-permissions.rules"

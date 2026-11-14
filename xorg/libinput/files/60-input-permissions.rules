@@ -1,0 +1,11 @@
+# Device permissions for systems that run a udev daemon.
+#
+# Mirrors the policy already applied by /etc/mdev.conf, so a machine does not
+# need a manual chgrp/chmod before starting the graphical server. The matching
+# mdev rules are:
+#
+#   SUBSYSTEM=drm;.*   root:video 660 *libudev-zero-helper
+#   SUBSYSTEM=input;.* root:input 660 *libudev-zero-helper
+
+SUBSYSTEM=="input", GROUP="input", MODE="0660"
+SUBSYSTEM=="drm",   GROUP="video", MODE="0660"
