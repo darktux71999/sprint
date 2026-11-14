@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+# Remove compiler debug stuff and post-install message.
+sed Makefile \
+    -e '/CFLAGS.*-g/d' \
+    -e '/^install:/s/ post-install$//' > _
+mv -f _ Makefile
+
+make xdotool.static
+make PREFIX=/usr install-static
