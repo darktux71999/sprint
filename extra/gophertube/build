@@ -1,0 +1,15 @@
+#!/bin/sh -e
+# gophertube: TUI de YouTube en Go (bubbletea), reproduce con mpv,
+# descarga con yt-dlp y previsualiza con chafa.
+# Usa modulos de Go (necesita red en el build).
+# -buildvcs=false: el tarball no trae .git y go1.27 aborta el stamp VCS.
+
+go build -trimpath -buildvcs=false \
+    -ldflags "-X gophertube/internal/app.version=v$2" \
+    -o gophertube .
+
+mkdir -p "$1/usr/bin"
+install -Dm755 gophertube "$1/usr/bin/gophertube"
+
+mkdir -p "$1/usr/share/man/man1"
+install -Dm644 man/gophertube.1 "$1/usr/share/man/man1/gophertube.1"
