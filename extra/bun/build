@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+# KISS copia los zip sin descomprimir, asi que se extrae a mano.
+unzip -q ./*.zip
+
+# Bun musl enlaza libstdc++.so.6, que sprint no instala: el wrapper se lo
+# resuelve con el shim de mc-runtime, igual que opencode.
+install -Dm755 bun-linux-x64-musl/bun "$1/usr/lib/bun/bun"
+
+install -Dm755 /dev/stdin "$1/usr/bin/bun" <<'EOF'
+#!/bin/sh
+export LD_LIBRARY_PATH="/usr/lib/mc-runtime/shim${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec /usr/lib/bun/bun "$@"
+EOF
+
+ln -s bun "$1/usr/bin/bunx"
