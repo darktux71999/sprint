@@ -1,0 +1,5 @@
+#!/bin/sh -e
+# yt-dlp: binario estático musl upstream, autocontenido.
+# No requiere python del sistema (PyInstaller musllinux).
+
+install -Dm755 yt-dlp_musllinux "$1/usr/bin/yt-dlp"
