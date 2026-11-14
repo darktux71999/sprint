@@ -190,3 +190,52 @@ asistente de IA mueren al cerrar la sesión. Lanzarlos desvinculados:
 ```sh
 setsid sh -c 'kiss b webkitgtk >/dev/null 2>&1' </dev/null &
 ```
+
+## Nota para después: que ccache participe en (casi) todos los builds
+
+Pendiente, **no aplicado**. Hoy la ruta estable (`KISS_PID=stable`, ver
+`kiss-sprint` 6.2.0 4) ya hace que las claves de ccache sean reutilizables,
+pero solo dos recetas invocan ccache: `extra/webkitgtk` e `extra/icu`. El resto
+compila directo y nunca consulta el cache. Dos formas de extenderlo:
+
+### 1. `PATH` con los wrappers delante
+
+`extra/ccache` instala symlinks en `/usr/lib/ccache/bin` (`cc`, `<host>-cc`,
+`gcc`, `g++`, `cpp`, `c++`) que apuntan a `/usr/bin/ccache`. Poner ese
+directorio el primero en `PATH` hace que todo `cc`/`gcc` pase por ccache sin
+tocar recetas.
+
+Dos avisos antes de hacerlo:
+
+- **Rompe CMake** cuando la receta pasa `-DCMAKE_C_COMPILER=clang` y CMake
+  resuelve `clang` a través del wrapper: acaba invocando `ccache -O1 ... -c`
+  sin el nombre del compilador. Ya está documentado arriba; por eso se revirtió.
+  El paquete **no** crea symlinks de `clang`/`clang++` (el `post-install` pide
+  crearlos a mano), así que con clang ni siquiera engancharía sin añadirlos.
+- Solo sería seguro en builds no-CMake, o si las recetas CMake fijan el
+  compilador por ruta absoluta (`/usr/bin/clang`).
+
+### 2. Activarlo en cada receta que lo soporte
+
+Donde el sistema de build tenga launcher, activarlo explícitamente:
+
+- CMake: `-DCMAKE_C_COMPILER_LAUNCHER=ccache` y
+  `-DCMAKE_CXX_COMPILER_LAUNCHER=ccache`.
+- autotools/`make`: `CC="ccache cc"` (o `CXX`), que es como lo espera ccache.
+
+Es más trabajo (una línea por receta) pero no depende de `PATH` ni choca con
+CMake, y queda declarado en el paquete.
+
+### Cómo medirlo
+
+```sh
+ccache -z                              # estadísticas a cero
+kiss b <pkg>                           # 1ª: miss, llena el cache
+ccache -z
+kiss b <pkg>                           # 2ª: debe dar hits casi totales
+ccache -s | head -4
+```
+
+Criterio para decidir: si el segundo build no sube de ~80% de hits en un
+paquete grande, el cuello no es la ruta sino que ccache no se está invocando.
+
