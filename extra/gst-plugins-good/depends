@@ -3,7 +3,6 @@ cairo
 gdk-pixbuf
 gettext make
 glib
-gobject-introspection make
 gst-plugins-base
 gstreamer
 gtk+3

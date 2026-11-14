@@ -9,7 +9,6 @@ meson setup build \
 	-Ddoc=disabled \
 	-Dexamples=disabled \
 	-Dtests=disabled \
-	-Dintrospection=enabled \
 	-Dnls=enabled \
 	-Dorc=enabled \
 	-Dvpx=enabled \
@@ -30,7 +29,6 @@ meson setup build \
 	-Dsoup=enabled \
 	-Dsoup-version=3 \
 	-Daudioparsers=enabled \
-	-Daudioconvert=enabled \
 	-Dvideofilter=enabled \
 	-Ddeinterlace=enabled \
 	-Dequalizer=enabled \
