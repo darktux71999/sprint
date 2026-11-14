@@ -1,0 +1,70 @@
+#!/bin/sh -e
+
+# DeepTutor no es un paquete sino 22 distribuciones PyPI (core + 21 modulos)
+# con ~210 dependencias de terceros (numpy, scipy, pymupdf, faiss, litellm,
+# manim...). Se instalan en un prefijo privado, /usr/lib/deeptutor, para no
+# mezclarlas con el site-packages que administra python/python.
+#
+# Las dependencias se resuelven contra PyPI en tiempo de build (necesita red);
+# en musl varias se compilan desde fuente, de ahi que el build tarde.
+
+DIST="$1/usr/lib/deeptutor"
+V="$2"
+
+# -s ignora el site-packages del usuario: el build usa el pip del paquete
+# python-pip, no el de ~/.local.
+# --only-binary=pymupdf: PyMuPDF 2.x no publica wheel musl y su sdist no
+# compila aqui (usa "ld -r -b binary", que lld no soporta). Con la restriccion
+# pip elige la ultima 1.x con wheel cp310-abi3-musllinux_1_2_x86_64.
+python3 -s -m pip install \
+    --prefix="$DIST" \
+    --only-binary=pymupdf \
+    --no-warn-script-location \
+    --disable-pip-version-check \
+    --root-user-action=ignore \
+    "deeptutor==$V" \
+    "deeptutor-audio-overview==$V" \
+    "deeptutor-books==$V" \
+    "deeptutor-calendar==$V" \
+    "deeptutor-cli==$V" \
+    "deeptutor-co-writer==$V" \
+    "deeptutor-knowledge==$V" \
+    "deeptutor-mastery==$V" \
+    "deeptutor-memory==$V" \
+    "deeptutor-notebook==$V" \
+    "deeptutor-parser-liteparse==$V" \
+    "deeptutor-parsing==$V" \
+    "deeptutor-partners==$V" \
+    "deeptutor-providers==$V" \
+    "deeptutor-questions==$V" \
+    "deeptutor-reading==$V" \
+    "deeptutor-renderer-manim==$V" \
+    "deeptutor-research==$V" \
+    "deeptutor-server==$V" \
+    "deeptutor-solve==$V" \
+    "deeptutor-video-lesson==$V" \
+    "deeptutor-visualize==$V" \
+    "deeptutor-web==$V"
+
+# Version resuelta de las dependencias, para poder repetir el build.
+python3 -s - "$DIST" <<'EOF'
+import sys, pathlib
+site = next(pathlib.Path(sys.argv[1]).glob("lib/python3.*/site-packages"))
+lines = sorted(p.name for p in site.glob("*.dist-info"))
+print("dependencias resueltas: %d" % len(lines))
+EOF
+
+# pymupdf y faiss enlazan libstdc++.so.6, que sprint no tiene: vive en el shim
+# de mc-runtime. pycairo y manimpango usan cairo/pango del sistema.
+install -Dm755 /dev/stdin "$1/usr/bin/deeptutor" <<'EOF'
+#!/bin/sh
+LD_LIBRARY_PATH="/usr/lib/mc-runtime/shim${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH
+
+for d in /usr/lib/deeptutor/lib/python3.*/site-packages; do
+    PYTHONPATH="$d${PYTHONPATH:+:$PYTHONPATH}"
+done
+export PYTHONPATH
+
+exec /usr/lib/deeptutor/bin/deeptutor "$@"
+EOF
