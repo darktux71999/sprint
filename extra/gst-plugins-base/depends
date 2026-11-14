@@ -6,6 +6,7 @@ gstreamer
 libX11
 libXext
 libXi
+libXv
 libdrm
 libjpeg-turbo
 libogg
