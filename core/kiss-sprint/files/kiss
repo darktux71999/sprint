@@ -1077,12 +1077,58 @@ pkg_build_all() {
         ! prompt "Install built packages? [$explicit]" || (args i $explicit)
 }
 
+kiss_jobs() {
+    # One job per physical core. SMT siblings share the same execution units,
+    # so on long builds the extra threads only add memory pressure. Count the
+    # unique (physical id, core id) pairs; fall back to half of the logical
+    # CPUs when the kernel does not expose them, then to a single job.
+    _jobs=$(awk -F: '
+        /^physical id/ { pid = $2 }
+        /^core id/     { print (pid == "" ? "0" : pid) "-" $2 }
+    ' /proc/cpuinfo 2>/dev/null | sort -u | wc -l 2>/dev/null)
+
+    [ "${_jobs:-0}" -gt 0 ] 2>/dev/null ||
+        _jobs=$(( $(grep -sc '^processor' /proc/cpuinfo 2>/dev/null) / 2 ))
+
+    [ "${_jobs:-0}" -gt 0 ] 2>/dev/null || _jobs=1
+
+    printf '%s\n' "$_jobs"
+}
+
 pkg_build() {
     # Install built packages to a directory under the package name to
     # avoid collisions with other packages.
     mkcd "$mak_dir/$1" "$pkg_dir/$1/$pkg_db"
 
     log "$1" "Starting build"
+
+    # Hand every build a single job count derived from the physical cores.
+    # Make, cargo and cmake read the variables below natively; ninja has no
+    # such variable, so a shim first in PATH appends -j when the recipe did
+    # not pass one. Set KISS_JOBS in the environment to override.
+    KISS_JOBS=${KISS_JOBS:-$(kiss_jobs)}
+    export KISS_JOBS
+
+    shim_dir="$mak_dir/.kiss-bin"
+    ninja_real=$(command -v ninja) || :
+    shim_path=
+
+    if [ -n "$ninja_real" ]; then
+        mkdir -p "$shim_dir"
+
+        printf '%s\n' \
+            '#!/bin/sh' \
+            'for arg; do' \
+            '    case $arg in' \
+            "        -j*|-t*|-d*|-h|--help|--version) exec $ninja_real \"\$@\" ;;" \
+            '    esac' \
+            'done' \
+            "exec $ninja_real -j \"\${KISS_JOBS:-1}\" \"\$@\"" \
+            > "$shim_dir/ninja"
+
+        chmod 755 "$shim_dir/ninja"
+        shim_path="$shim_dir:"
+    fi
 
     # arg1: pre-build
     # arg2: package name
@@ -1112,6 +1158,11 @@ pkg_build() {
         GOFLAGS="-trimpath -modcacherw $GOFLAGS" \
         GOPATH="$PWD/go" \
         KISS_ROOT="$KISS_ROOT" \
+        KISS_JOBS="$KISS_JOBS" \
+        PATH="${shim_path:-}$PATH" \
+        MAKEFLAGS="${MAKEFLAGS:--j$KISS_JOBS}" \
+        CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-$KISS_JOBS}" \
+        CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$KISS_JOBS}" \
         \
         "$repo_dir/build" "$pkg_dir/$1" "$repo_ver" 2>&1 || {
             log "$1" "Build failed"
