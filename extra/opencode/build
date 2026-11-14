@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+# El binario es musl dinamico y enlaza contra libstdc++.so.6, que sprint no
+# tiene: se resuelve con el shim de mc-runtime desde el wrapper.
+install -Dm755 opencode "$1/usr/lib/opencode/opencode"
+
+install -Dm755 /dev/stdin "$1/usr/bin/opencode" <<'EOF'
+#!/bin/sh
+export LD_LIBRARY_PATH="/usr/lib/mc-runtime/shim${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec /usr/lib/opencode/opencode "$@"
+EOF

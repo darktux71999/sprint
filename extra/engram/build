@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+export DESTDIR="$1"
+
+# Go puro (modernc.org/sqlite), sin cgo. Necesita red para bajar modulos.
+CGO_ENABLED=0 \
+go build -trimpath -buildvcs=false \
+    -ldflags "-s -w -X main.version=v$2" \
+    -o engram ./cmd/engram
+
+install -Dm755 engram "$1/usr/bin/engram"
