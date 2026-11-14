@@ -1,8 +1,27 @@
+aom
+bzip2
+curl
 gettext make
 glib
 gobject-introspection make
 gst-plugins-base
 gstreamer
+libX11
+libass
+libdrm
+libgudev
+libnice
+libsrtp
+libva
+libwebp
+linux-headers make
+mesa
 meson make
+ninja make
+openjpeg
+openssl
+opus
 orc
 pkgconf make
+vulkan-headers make
+vulkan-loader

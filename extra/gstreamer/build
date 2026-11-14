@@ -2,15 +2,23 @@
 
 export DESTDIR="$1"
 
-: > tests/meson.build
-
 meson setup \
     -Dprefix=/usr \
     -Dlibexecdir=/usr/lib \
     -Dbuildtype=release \
     -Ddbghelp=disabled \
-	-Dintrospection=enabled \
+    -Dlibunwind=disabled \
+    -Dlibdw=disabled \
+    -Dintrospection=enabled \
+    -Dtools=enabled \
+    -Dcheck=enabled \
+    -Dnls=enabled \
+    -Dbash-completion=disabled \
     -Dexamples=disabled \
+    -Dtests=disabled \
+    -Dbenchmarks=disabled \
+    -Ddoc=disabled \
+    -Dptp-helper-permissions=capabilities \
     output
 
 ninja -C output

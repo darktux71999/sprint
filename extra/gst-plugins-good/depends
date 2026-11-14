@@ -3,16 +3,20 @@ cairo
 gdk-pixbuf
 gettext make
 glib
+gobject-introspection make
 gst-plugins-base
 gstreamer
 gtk+3
 lame
 libgcrypt
+libgudev
 libjpeg-turbo
 libpng
 libsoup
+libsoup3
 libvpx
 libxml2
+linux-headers make
 meson make
 ninja make
 nasm make

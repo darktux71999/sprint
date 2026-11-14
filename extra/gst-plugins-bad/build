@@ -4,11 +4,36 @@ meson setup build \
 	--prefix=/usr \
 	--libexecdir=/usr/lib \
 	-Dbuildtype=release \
+	-Ddefault_library=shared \
 	-Ddoc=disabled \
 	-Dexamples=disabled \
+	-Dtests=disabled \
+	-Dtools=disabled \
+	-Dintrospection=enabled \
+	-Dnls=enabled \
+	-Dorc=enabled \
 	-Dglib_assert=false \
 	-Dglib_checks=false \
-	-Dtests=disabled
+	-Daom=enabled \
+	-Dopus=enabled \
+	-Dassrender=enabled \
+	-Dcurl=enabled \
+	-Dbz2=enabled \
+	-Dwebp=enabled \
+	-Dopenjpeg=enabled \
+	-Dgl=enabled \
+	-Dx11=enabled \
+	-Ddrm=enabled \
+	-Dudev=enabled \
+	-Dkms=enabled \
+	-Dva=enabled \
+	-Dvulkan=enabled \
+	-Dv4l2codecs=enabled \
+	-Ddtls=enabled \
+	-Dsrtp=enabled \
+	-Dwebrtc=enabled \
+	-Dshm=enabled \
+	-Dgpl=disabled
 ninja -C build
 DESTDIR="$1" ninja -C build install
 rm -rf "$1/usr/share/doc"

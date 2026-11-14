@@ -4,12 +4,34 @@ export DESTDIR="$1"
 
 meson setup \
     -Dprefix=/usr \
+    -Dlibexecdir=/usr/lib \
+    -Dbuildtype=release \
+    -Ddefault_library=shared \
     -Dgl=enabled \
-    -Dtests=disabled \
+    -Dgl-jpeg=enabled \
+    -Dgl-png=enabled \
+    -Dgl-graphene=disabled \
+    -Dalsa=enabled \
+    -Dogg=enabled \
+    -Dvorbis=enabled \
+    -Dopus=enabled \
+    -Dpango=enabled \
+    -Dx11=enabled \
+    -Dxshm=enabled \
+    -Dxvideo=enabled \
+    -Dxi=enabled \
+    -Dtheora=disabled \
     -Dtremor=disabled \
-    -Dexamples=disabled \
+    -Dlibvisual=disabled \
+    -Diso-codes=disabled \
     -Dcdparanoia=disabled \
-	-Dintrospection=enabled \
+    -Dintrospection=enabled \
+    -Dtools=enabled \
+    -Dnls=enabled \
+    -Dorc=enabled \
+    -Dexamples=disabled \
+    -Dtests=disabled \
+    -Ddoc=disabled \
     output
 
 ninja -C output
