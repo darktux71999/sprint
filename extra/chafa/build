@@ -1,0 +1,10 @@
+#!/bin/sh -e
+# chafa: visor de imagenes en terminal (lo usa gophertube para thumbnails).
+# Tarball trae configure generado (solo git necesita autogen).
+
+./configure \
+    --prefix=/usr \
+    --mandir=/usr/share/man
+
+make
+make DESTDIR="$1" install
