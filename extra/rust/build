@@ -84,7 +84,18 @@ case $libunwind_path in */*)
     export LIBRARY_PATH="$PWD/libgcc:$LIBRARY_PATH"
 esac
 
-python x.py build -j "$(grep -scF 'core id' /proc/cpuinfo)"
+# Un job por nucleo fisico: los hermanos SMT comparten unidades de ejecucion
+# y en un build de rustc solo aportan presion de memoria. Se cuentan los pares
+# (physical id, core id) unicos; si el kernel no los expone se usa la mitad de
+# las CPUs logicas y, en ultimo caso, un solo job.
+jobs=$(awk -F: '
+    /^physical id/ { pid = $2 }
+    /^core id/     { print (pid == "" ? "0" : pid) "-" $2 }
+' /proc/cpuinfo | sort -u | wc -l)
+[ "$jobs" -gt 0 ] || jobs=$(( $(grep -sc '^processor' /proc/cpuinfo) / 2 ))
+[ "$jobs" -gt 0 ] || jobs=1
+
+python x.py build -j "$jobs"
 python x.py install
 
 rm -rf "$1/usr/lib/rustlib/src/" "$1/usr/share/doc" "$1/usr/share/zsh" "$1/usr/lib/rustlib/uninstall.sh"
