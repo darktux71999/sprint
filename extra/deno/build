@@ -1,0 +1,8 @@
+#!/bin/sh -e
+# deno: binario upstream glibc + gcompat para musl.
+# Solo existe build gnu; en Sprint (musl) corre vía gcompat.
+
+unzip -o deno-x86_64-unknown-linux-gnu.zip
+
+mkdir -p "$1/usr/bin"
+install -Dm755 deno "$1/usr/bin/deno"
