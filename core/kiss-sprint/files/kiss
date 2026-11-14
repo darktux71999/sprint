@@ -2135,6 +2135,17 @@ create_tmp_dirs() {
     cac_dir=${XDG_CACHE_HOME:-"${HOME%"${HOME##*[!/]}"}/.cache"}
     cac_dir=${cac_dir%"${cac_dir##*[!/]}"}/kiss
 
+    # ccache defaults, so a fresh machine gets a usable cache without shell
+    # configuration. The path matches ccache's own default, and temp files go
+    # to disk because a small /tmp tmpfs breaks large object compilation.
+    : "${CCACHE_DIR:=${XDG_CACHE_HOME:-$HOME/.cache}/ccache}"
+    : "${CCACHE_MAXSIZE:=100G}"
+    : "${CCACHE_COMPRESS:=true}"
+    : "${CCACHE_COMPILERCHECK:=content}"
+    : "${CCACHE_TEMPDIR:=$CCACHE_DIR/tmp}"
+    export CCACHE_DIR CCACHE_MAXSIZE CCACHE_COMPRESS \
+           CCACHE_COMPILERCHECK CCACHE_TEMPDIR
+
     # Persistent cache directories.
     src_dir=$cac_dir/sources
     log_dir=$cac_dir/logs/${time%-*}
@@ -2177,7 +2188,11 @@ main() {
 
     # Defaults for environment variables.
     : "${KISS_COMPRESS:=gz}"
-    : "${KISS_PID:=$$}"
+    # A fixed suffix keeps every build in ~/.cache/kiss/proc/stable, so the
+    # absolute paths embedded in #line markers do not change between builds
+    # and ccache keys stay valid. KISS builds one package at a time, so
+    # sharing the directory is safe (see docs/ccache-kiss.md).
+    : "${KISS_PID:=stable}"
     : "${LOGNAME:?POSIX requires LOGNAME be set}"
 
     # Figure out which 'sudo' command to use based on the user's choice or what
